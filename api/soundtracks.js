@@ -31,7 +31,12 @@ export default async function handler(req, res) {
   const token = process.env.AIRTABLE_TOKEN;
 
   // Graceful no-op: no token configured -> empty catalog.
-  if (!token) { res.status(200).json({ week_group: group, tracks: [] }); return; }
+  if (!token) {
+    const body = { week_group: group, tracks: [] };
+    if (req.query && (req.query.debug === "1" || req.query.debug === "true")) body._noToken = true;
+    res.status(200).json(body);
+    return;
+  }
 
   try {
     const params = new URLSearchParams();
@@ -41,7 +46,13 @@ export default async function handler(req, res) {
     const url = `https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(AIRTABLE_TABLE)}?${params.toString()}`;
 
     const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!r.ok) { res.status(200).json({ week_group: group, tracks: [] }); return; }
+    const debug = req.query && (req.query.debug === "1" || req.query.debug === "true");
+    if (!r.ok) {
+      const body = { week_group: group, tracks: [] };
+      if (debug) { body._upstreamStatus = r.status; body._upstreamBody = (await r.text()).slice(0, 300); }
+      res.status(200).json(body);
+      return;
+    }
     const d = await r.json();
 
     const tracks = (d.records || []).map((rec) => ({
@@ -56,6 +67,8 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate=86400");
     res.status(200).json({ week_group: group, tracks });
   } catch (e) {
-    res.status(200).json({ week_group: group, tracks: [] });
+    const body = { week_group: group, tracks: [] };
+    if (req.query && (req.query.debug === "1" || req.query.debug === "true")) body._error = String(e);
+    res.status(200).json(body);
   }
 }
