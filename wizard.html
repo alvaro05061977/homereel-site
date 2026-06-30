@@ -263,12 +263,33 @@ document.getElementById('photoInput').addEventListener('change',e=>{
 function go(n){S.step=n;document.querySelectorAll('.step').forEach(el=>el.classList.toggle('hide',+el.dataset.step!==n));
   if(n===6)renderReview();renderSteps();window.scrollTo({top:0,behavior:'smooth'});}
 
+const ADDON_AT={avatar:'Agent avatar (+$250)',second_family:'Second family (+$300)',rush:'Rush 12h (+$150)'};
+const FMT_AT={'16:9':'16:9 Widescreen','9:16':'9:16 Vertical','1:1':'1:1 Square (+$75)'};
 async function submitOrder(){
   if(!document.getElementById('mls').checked){alert('Please acknowledge the social-only / not-for-MLS notice to continue.');return;}
-  if(!document.getElementById('address').value||!document.getElementById('agent').value||!document.getElementById('email').value){alert('Please fill in property address, agent name, and email (Step 5).');go(5);return;}
+  const addr=document.getElementById('address').value,ag=document.getElementById('agent').value,em=document.getElementById('email').value;
+  if(!addr||!ag||!em){alert('Please fill in property address, agent name, and email (Step 5).');go(5);return;}
   const btn=document.getElementById('payBtn');btn.disabled=true;btn.textContent='Preparing secure checkout…';
-  // STAGE 2 will POST this to /api/order (Airtable + Stripe). For now, preview only.
-  alert('Preview only — payment will be wired in the next step.\\n\\nOrder total: $'+total().toLocaleString());
+  const p=PACKAGES.find(x=>x.id===S.pkg),f=FAMILIES.find(x=>x.id===S.fam);
+  const payload={
+    address:addr,agent:ag,email:em,
+    brokerage:document.getElementById('brokerage').value,
+    phone:document.getElementById('phone').value,
+    handle:document.getElementById('handle').value,
+    vo:document.getElementById('vo').value,
+    packageName:p.name,familyName:f.name,
+    addonNames:[...S.addons].map(id=>ADDON_AT[id]),
+    extraRooms:S.extraRooms,
+    formatNames:[...S.fmt].map(id=>FMT_AT[id]),
+    mls:true,photoCount:S.photos.length,total:total(),
+    lineItems:lineItems().map(i=>({name:i[0],amount:i[1]}))
+  };
+  try{
+    const r=await fetch('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await r.json();
+    if(data.url){window.location.href=data.url;return;}
+    alert('Sorry, something went wrong: '+(data.error||'unknown')+'. Please try again or email us.');
+  }catch(e){alert('Network error — please try again.');}
   btn.disabled=false;btn.textContent='Continue to secure payment →';
 }
 
