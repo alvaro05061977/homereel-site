@@ -35,8 +35,13 @@ export default async function handler(req, res) {
       "Payment Status": "Unpaid",
       "Job Status": "New",
       "Order Date": new Date().toISOString().slice(0, 10),
-      "Notes": `Quoted total $${o.total}. ${o.photoCount || 0} listing photo(s) to follow.`,
+      "Notes": `Quoted total $${o.total}. ${o.photoCount || 0} listing photo(s) attached.`,
     };
+    // Listing photos: the browser already uploaded them to Cloudinary; we pass the links
+    // and Airtable ingests them into its own storage as downloadable attachments.
+    if (Array.isArray(o.photoUrls) && o.photoUrls.length) {
+      fields["Listing Photos"] = o.photoUrls.map((u) => ({ url: u }));
+    }
     const atRes = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(AIRTABLE_TABLE)}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
