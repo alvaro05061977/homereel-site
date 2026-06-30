@@ -27,6 +27,7 @@ export default async function handler(req, res) {
       "Handle / Website": o.handle || "",
       "Package": o.packageName ? [o.packageName] : undefined,        // typecast links by name
       "Family": o.familyName ? [o.familyName] : undefined,
+      "Soundtrack": o.soundtrackName ? [o.soundtrackName] : undefined, // link by track name; blank = editor's pick
       "Add-ons": Array.isArray(o.addonNames) ? o.addonNames : [],
       "Extra Rooms": Number(o.extraRooms) || 0,
       "Formats": Array.isArray(o.formatNames) ? o.formatNames : [],
