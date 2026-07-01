@@ -5,106 +5,124 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HomeReel — Cinematic lifestyle films for your listings</title>
 <meta name="description" content="Upload your listing photos, choose a family, and get a finished, social-ready lifestyle video that makes buyers feel at home — in about 48 hours. AI disclosure built in.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,900;1,9..144,400;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#1c2622; --ink-soft:#5b6661; --line:#e6e2d9; --paper:#faf8f3;
-    --card:#ffffff; --accent:#2f6b54; --accent-d:#234f3f; --gold:#c4933f;
-    --shadow:0 10px 30px rgba(28,38,34,.08); --r:16px;
+    --cream:#f7efe0; --paper:#fdf7ec; --card:#fffaf0; --ink:#211a12; --ink-soft:#5c4f3d;
+    --tomato:#e8442a; --tomato-d:#c9331f; --gold:#e6b25e; --line:rgba(33,26,18,.12);
+    --shadow:0 16px 40px rgba(33,26,18,.10); --r:16px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
-  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--paper);color:var(--ink);line-height:1.6}
-  h1,h2,h3,.serif{font-family:Georgia,"Times New Roman",serif}
+  body{font-family:'Space Grotesk',sans-serif;background:var(--cream);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,.serif{font-family:'Fraunces',serif;font-weight:400;letter-spacing:-.02em;line-height:1.04}
+  em{font-style:italic;color:var(--tomato)}
   .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
   a{color:inherit;text-decoration:none}
   img,video{max-width:100%;display:block}
 
   /* header */
-  header{position:sticky;top:0;z-index:40;background:rgba(250,248,243,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
-  .bar{display:flex;align-items:center;justify-content:space-between;height:66px}
-  .logo{font-family:Georgia,serif;font-size:23px;font-weight:700;letter-spacing:.3px;display:flex;align-items:center;gap:9px}
-  .logo .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px rgba(47,107,84,.15)}
-  nav .navlink{font-size:14.5px;color:var(--ink-soft);margin-left:24px}
+  header{position:sticky;top:0;z-index:40;background:rgba(247,239,224,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .bar{display:flex;align-items:center;justify-content:space-between;height:70px}
+  .logo{font-family:'Fraunces',serif;font-size:24px;font-weight:900}
+  .logo em{font-style:italic;color:var(--tomato)}
+  nav .navlink{font-size:15px;color:var(--ink-soft);margin-left:26px;font-weight:500}
   nav .navlink:hover{color:var(--ink)}
   @media(max-width:760px){nav .navlink{display:none}}
-  .btn{display:inline-block;background:var(--accent);color:#fff;padding:12px 22px;border-radius:11px;font-size:15px;font-weight:600;cursor:pointer;border:none;transition:.15s}
-  .btn:hover{background:var(--accent-d)}
-  .btn.lg{padding:15px 32px;font-size:16px}
-  .btn.ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
-  .header-cta{margin-left:24px}
+  .btn{display:inline-block;background:var(--tomato);color:#fff;padding:13px 24px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;border:1.5px solid transparent;transition:.16s;font-family:'Space Grotesk'}
+  .btn:hover{background:var(--tomato-d);transform:translateY(-1px)}
+  .btn.lg{padding:16px 32px;font-size:16px}
+  .btn.ghost{background:transparent;color:var(--ink);border-color:var(--ink)}
+  .btn.ghost:hover{background:var(--ink);color:var(--cream)}
+  .header-cta{margin-left:26px}
 
   /* hero */
-  .hero{padding:70px 0 40px;text-align:center}
-  .eyebrow{font-size:12.5px;letter-spacing:1.6px;text-transform:uppercase;color:var(--accent);font-weight:700}
-  .hero h1{font-size:52px;letter-spacing:-1.2px;margin:14px 0 16px;line-height:1.05}
-  @media(max-width:640px){.hero h1{font-size:36px}}
-  .hero p.lead{font-size:19px;color:var(--ink-soft);max-width:56ch;margin:0 auto 28px}
+  .hero{padding:74px 0 20px;text-align:center}
+  .eyebrow{font-size:12.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--tomato);font-weight:700}
+  .hero h1{font-size:74px;margin:20px 0 0;line-height:1.0}
+  @media(max-width:640px){.hero h1{font-size:42px}}
+  .hero p.lead{font-family:'Space Grotesk';font-size:19px;color:var(--ink-soft);max-width:56ch;margin:26px auto 30px}
   .hero-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
-  .filmframe{max-width:820px;margin:44px auto 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--line);background:#000;position:relative}
-  .filmframe video{width:100%;display:block}
-  .ai-badge{position:absolute;top:14px;right:14px;font-size:11px;background:rgba(0,0,0,.5);color:#fff;padding:5px 10px;border-radius:7px;z-index:2}
+
+  /* hero collage — "listing photos in" */
+  .collage{max-width:960px;margin:52px auto 0;display:grid;grid-template-columns:1.35fr 1fr;grid-template-rows:1fr 1fr;gap:14px}
+  .collage figure{position:relative;border-radius:16px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--line)}
+  .collage .big{grid-row:span 2}
+  .collage img{width:100%;height:100%;object-fit:cover}
+  .collage .lbl{position:absolute;left:12px;bottom:12px;background:rgba(253,247,236,.92);color:var(--ink);font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:7px}
+  .collage .flag{position:absolute;top:12px;left:12px;background:var(--tomato);color:#fff;font-size:11px;font-weight:700;letter-spacing:.04em;padding:5px 11px;border-radius:7px}
   .trust{display:flex;gap:28px;justify-content:center;margin-top:34px;flex-wrap:wrap;color:var(--ink-soft);font-size:14px}
-  .trust span:before{content:"●";color:var(--accent);margin-right:8px;font-size:9px;vertical-align:middle}
+  .trust span:before{content:"●";color:var(--tomato);margin-right:8px;font-size:9px;vertical-align:middle}
 
   /* sections */
-  section.block{padding:64px 0}
+  section.block{padding:72px 0}
   .center{text-align:center}
-  h2.section-title{font-size:34px;letter-spacing:-.4px;margin-bottom:10px}
-  p.section-sub{color:var(--ink-soft);font-size:16.5px;max-width:60ch;margin:0 auto 40px}
-  .center p.section-sub{margin-left:auto;margin-right:auto}
+  h2.section-title{font-size:42px;margin-bottom:12px}
+  p.section-sub{font-family:'Space Grotesk';color:var(--ink-soft);font-size:17px;max-width:60ch;margin:0 auto 44px}
 
   /* steps */
   .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
   @media(max-width:760px){.steps{grid-template-columns:1fr}}
-  .step{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:28px;box-shadow:var(--shadow)}
-  .step .num{width:38px;height:38px;border-radius:50%;background:var(--accent);color:#fff;font-family:Georgia,serif;font-size:18px;display:grid;place-items:center;margin-bottom:14px}
-  .step h3{font-size:19px;margin-bottom:6px}
-  .step p{color:var(--ink-soft);font-size:14.5px}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:30px;text-align:left}
+  .step .num{width:46px;height:46px;border-radius:12px;background:#fbe7df;color:var(--tomato);font-family:'Fraunces';font-weight:900;font-size:22px;display:grid;place-items:center;margin-bottom:18px}
+  .step h3{font-size:24px;margin-bottom:8px}
+  .step p{font-family:'Space Grotesk';color:var(--ink-soft);font-size:15px}
+
+  /* sample — "film out" */
+  .filmframe{max-width:860px;margin:0 auto;border-radius:18px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--line);background:#000;position:relative}
+  .filmframe video{width:100%;display:block}
+  .ai-badge{position:absolute;top:14px;right:14px;font-size:11px;background:rgba(0,0,0,.55);color:#fff;padding:5px 10px;border-radius:7px;z-index:2}
 
   /* family */
-  .family{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;align-items:center}
+  .family{display:grid;grid-template-columns:1.1fr 1fr;gap:44px;align-items:center}
   @media(max-width:760px){.family{grid-template-columns:1fr}}
   .family img{border-radius:var(--r);box-shadow:var(--shadow);border:1px solid var(--line)}
-  .family h2{font-size:30px;margin-bottom:12px}
-  .family p{color:var(--ink-soft);margin-bottom:12px}
-  .tagpill{display:inline-block;font-size:11px;letter-spacing:.6px;text-transform:uppercase;font-weight:700;color:var(--accent-d);background:#e9f1ec;border-radius:7px;padding:4px 10px;margin-bottom:14px}
+  .family h2{font-size:38px;margin-bottom:14px}
+  .family p{font-family:'Space Grotesk';color:var(--ink-soft);margin-bottom:14px}
+  .tagpill{display:inline-block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--tomato);background:#fbe7df;border-radius:7px;padding:5px 11px;margin-bottom:16px}
 
   /* pricing */
-  .pricing{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:start}
+  .pricing{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:stretch}
   @media(max-width:760px){.pricing{grid-template-columns:1fr}}
-  .price-card{background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:30px;box-shadow:var(--shadow);position:relative}
-  .price-card.feat{border-color:var(--accent);box-shadow:0 14px 40px rgba(47,107,84,.16)}
-  .price-card .tag{position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#fff;background:var(--accent);border-radius:999px;padding:5px 14px}
-  .price-card h3{font-family:system-ui;font-size:17px;margin-bottom:6px}
-  .price-card .amt{font-family:Georgia,serif;font-size:40px;margin:6px 0 2px}
-  .price-card .rooms{color:var(--ink-soft);font-size:14px;margin-bottom:16px}
-  .price-card ul{list-style:none;font-size:14.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:9px;margin-bottom:22px}
-  .price-card li:before{content:"✓";color:var(--accent);font-weight:700;margin-right:9px}
-  .price-card .btn{width:100%;text-align:center}
+  .price-card{background:var(--card);border:1.5px solid var(--line);border-radius:var(--r);padding:32px;position:relative;display:flex;flex-direction:column;text-align:left}
+  .price-card.feat{background:var(--ink);color:var(--cream);border-color:var(--ink)}
+  .price-card .tag{position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#fff;background:var(--tomato);border-radius:999px;padding:5px 14px}
+  .price-card h3{font-family:'Fraunces';font-weight:600;font-size:24px;margin-bottom:8px}
+  .price-card .amt{font-family:'Fraunces';font-weight:900;font-size:46px;margin:4px 0 2px}
+  .price-card .rooms{font-family:'Space Grotesk';color:var(--ink-soft);font-size:14px;margin-bottom:20px}
+  .price-card.feat .rooms{color:#c9bda9}
+  .price-card ul{list-style:none;font-family:'Space Grotesk';font-size:14.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:10px;margin-bottom:26px}
+  .price-card.feat ul{color:#e5dccb}
+  .price-card li:before{content:"✓";color:var(--tomato);font-weight:700;margin-right:9px}
+  .price-card.feat li:before{color:var(--gold)}
+  .price-card .btn{width:100%;text-align:center;margin-top:auto}
+  .price-card.feat .btn.ghost{border-color:var(--cream);color:var(--cream)}
+  .price-card.feat .btn.ghost:hover{background:var(--cream);color:var(--ink)}
 
   /* compliance */
-  .compliance{background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:40px;display:grid;grid-template-columns:auto 1fr;gap:26px;align-items:center}
+  .compliance{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:42px;display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:center}
   @media(max-width:640px){.compliance{grid-template-columns:1fr}}
   .compliance .shield{font-size:46px}
-  .compliance h2{font-size:25px;margin-bottom:8px}
-  .compliance p{color:var(--ink-soft);font-size:15.5px}
+  .compliance h2{font-size:28px;margin-bottom:10px}
+  .compliance p{font-family:'Space Grotesk';color:var(--ink-soft);font-size:15.5px}
 
   /* order */
-  #order{background:linear-gradient(180deg,#f3efe6,#faf8f3)}
-  .order-embed{background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;max-width:760px;margin:0 auto}
-  .order-embed iframe{width:100%;height:1000px;border:0;background:#fff}
-  .order-note{max-width:640px;margin:18px auto 0;text-align:center;color:var(--ink-soft);font-size:14px}
+  #order{background:var(--paper);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .order-note{font-family:'Space Grotesk';max-width:640px;margin:20px auto 0;text-align:center;color:var(--ink-soft);font-size:14px}
 
-  footer{border-top:1px solid var(--line);padding:36px 0;color:var(--ink-soft);font-size:13.5px;text-align:center;margin-top:20px}
-  footer .logo{justify-content:center;margin-bottom:10px;font-size:19px}
-  .disclaim{max-width:60ch;margin:12px auto 0;font-size:12.5px}
+  footer{background:var(--ink);color:var(--cream);padding:56px 0 40px;text-align:center;margin-top:0}
+  footer .logo{color:var(--cream);margin-bottom:12px;font-size:22px}
+  footer .fsub{font-family:'Space Grotesk';color:#c9bda9;font-size:14.5px}
+  .disclaim{font-family:'Space Grotesk';max-width:64ch;margin:16px auto 0;font-size:12.5px;color:#8f836f}
 </style>
 </head>
 <body>
 
 <header>
   <div class="wrap bar">
-    <div class="logo"><span class="dot"></span> HomeReel</div>
+    <div class="logo">Home<em>reel</em></div>
     <nav style="display:flex;align-items:center">
       <a class="navlink" href="#how">How it works</a>
       <a class="navlink" href="#sample">Sample film</a>
@@ -114,19 +132,32 @@
   </div>
 </header>
 
-<!-- HERO -->
+<!-- HERO — listing photos in -->
 <section class="wrap hero">
   <span class="eyebrow">Listing photos in · lifestyle film out</span>
-  <h1>Turn your listings into<br>cinematic lifestyle films.</h1>
+  <h1>Turn your listings into<br><em>cinematic</em> lifestyle films.</h1>
   <p class="lead">Upload your listing photos, choose a family, and we deliver a finished, social-ready video that makes buyers feel at home — in about 48 hours.</p>
   <div class="hero-actions">
     <a class="btn lg" href="/wizard.html">Create your film →</a>
     <a class="btn lg ghost" href="#sample">Watch a sample</a>
   </div>
-  <div class="filmframe">
-    <span class="ai-badge">AI lifestyle visualization</span>
-    <video src="sample-film.mp4" poster="sample-poster.jpg" controls playsinline preload="metadata"></video>
+
+  <div class="collage">
+    <figure class="big">
+      <span class="flag">YOUR PHOTOS</span>
+      <img src="listing-exterior.jpg" alt="Listing exterior">
+      <span class="lbl">4261 Mesa Drive · Exterior</span>
+    </figure>
+    <figure>
+      <img src="listing-kitchen.jpg" alt="Kitchen">
+      <span class="lbl">Kitchen</span>
+    </figure>
+    <figure>
+      <img src="listing-living.jpg" alt="Living room">
+      <span class="lbl">Living room</span>
+    </figure>
   </div>
+
   <div class="trust">
     <span>~48-hour turnaround</span>
     <span>Compliance-ready &amp; disclosed</span>
@@ -147,14 +178,15 @@
   </div>
 </section>
 
-<!-- SAMPLE -->
-<section class="block" id="sample" style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+<!-- SAMPLE — film out (the only place the film plays) -->
+<section class="block" id="sample" style="background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
   <div class="wrap center">
-    <h2 class="section-title">See it in motion</h2>
-    <p class="section-sub">A finished HomeReel film for a real listing — 4261 Mesa Drive.</p>
-    <div class="filmframe" style="margin-top:8px">
+    <span class="eyebrow">Film out</span>
+    <h2 class="section-title" style="margin-top:12px">See those same rooms come to life.</h2>
+    <p class="section-sub">The exact listing above — 4261 Mesa Drive — as a finished HomeReel film.</p>
+    <div class="filmframe">
       <span class="ai-badge">AI lifestyle visualization</span>
-      <video src="sample-film.mp4" poster="sample-poster.jpg" controls playsinline preload="none"></video>
+      <video src="sample-film.mp4" poster="sample-poster.jpg" controls playsinline preload="metadata"></video>
     </div>
   </div>
 </section>
@@ -165,7 +197,7 @@
     <img src="carters.jpg" alt="The Carters — a lifestyle family">
     <div>
       <span class="tagpill">Meet the cast</span>
-      <h2>Lifelike families that make a house feel like home.</h2>
+      <h2>Lifelike families that make a house feel like <em>home.</em></h2>
       <p>Buyers don't fall for empty rooms — they fall for the life inside them. Our families are warm, photoreal, and rotated across listings for fair-housing compliance. People shown are illustrative, never actual occupants.</p>
       <p>More households join the roster every month, so every listing gets the story that fits its buyer.</p>
       <a class="btn" href="/wizard.html">Start your order →</a>
@@ -174,7 +206,7 @@
 </section>
 
 <!-- PRICING -->
-<section class="block" id="pricing" style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+<section class="block" id="pricing" style="background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
   <div class="wrap center">
     <h2 class="section-title">Simple, per-film pricing</h2>
     <p class="section-sub">Every film includes a custom voiceover, your branding, the built-in AI disclosure, and both widescreen and vertical cuts.</p>
@@ -206,7 +238,7 @@
       <div class="shield">🛡️</div>
       <div>
         <h2>Built for 2026 disclosure rules</h2>
-        <p>Every HomeReel film ships with a permanent on-screen notice — <em>“Lifestyle scenes are AI-generated visualizations. People shown are not actual occupants.”</em> — and is delivered as a social advertising tool, not for MLS. Disciplined disclosure is what makes an AI lifestyle product safe to put your name on.</p>
+        <p>Every HomeReel film ships with a permanent on-screen notice — <em>"Lifestyle scenes are AI-generated visualizations. People shown are not actual occupants."</em> — and is delivered as a social advertising tool, not for MLS. Disciplined disclosure is what makes an AI lifestyle product safe to put your name on.</p>
       </div>
     </div>
   </div>
@@ -216,17 +248,17 @@
 <section class="block" id="order">
   <div class="wrap center">
     <span class="eyebrow">Start your film</span>
-    <h2 class="section-title" style="margin-top:10px">Order your listing film</h2>
+    <h2 class="section-title" style="margin-top:12px">Order your listing film</h2>
     <p class="section-sub">Upload your photos, choose your family and package, see your price update live, and pay securely — your finished film arrives in about 48 hours.</p>
     <a class="btn lg" href="/wizard.html">Start your order →</a>
-    <p class="order-note" style="margin-top:20px">Prefer to talk first? Email us and we'll help you choose the right film for your listing.</p>
+    <p class="order-note">Prefer to talk first? Email us and we'll help you choose the right film for your listing.</p>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <div class="logo"><span class="dot"></span> HomeReel</div>
-    <div>Cinematic lifestyle films for real estate listings.</div>
+    <div class="logo">Home<em>reel</em></div>
+    <div class="fsub">Cinematic lifestyle films for real estate listings.</div>
     <div class="disclaim">Lifestyle scenes are AI-generated visualizations. People shown are not actual occupants. Films are provided for social advertising and are not for MLS use.</div>
   </div>
 </footer>

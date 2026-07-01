@@ -1,0 +1,5 @@
+.DS_Store
+**/.DS_Store
+.vercel
+node_modules/
+_backup_pre_warm_editorial_*/
