@@ -20,9 +20,9 @@ const SITE = "https://homereel-site.vercel.app";
 // extraRoomCap: the canonical room catalog has exactly 12 types (Prompt_Engine.md),
 // so extras can only top a package up to 12 total rooms.
 const PACKAGES = {
-  essential: { name: "Essential", price: 500, extraRoomCap: 6 },
-  signature: { name: "Signature", price: 750, extraRoomCap: 4 },
-  showcase:  { name: "Showcase",  price: 1200, extraRoomCap: 0 },
+  essential: { name: "Essential", price: 500, rooms: 6, extraRoomCap: 6 },
+  signature: { name: "Signature", price: 750, rooms: 8, extraRoomCap: 4 },
+  showcase:  { name: "Showcase",  price: 1200, rooms: 12, extraRoomCap: 0 },
 };
 const ADDONS = {
   avatar:        { lineName: "Star in your own film",         airtable: "Agent avatar (+$250)",  price: 250 },
@@ -36,8 +36,25 @@ const FORMATS = {
 };
 const FAMILIES = { carters: "The Carters" };
 const EXTRA_ROOM_PRICE = 60;
-const MAX_PHOTOS = 40;
 const CLOUDINARY_PREFIX = "https://res.cloudinary.com/f2kjjypa/";
+
+// THE CANONICAL 12 room types — ids match wizard.html; names match the Airtable
+// "Room Type" options in Order Photos AND Prompt_Engine.md. All three must stay in sync.
+const ROOM_TYPES = {
+  front_exterior: "Front exterior",
+  kitchen: "Kitchen",
+  foyer: "Foyer",
+  living: "Living room",
+  dining: "Dining",
+  primary_bedroom: "Primary bedroom",
+  game_room: "Game room",
+  media_room: "Media room",
+  nook: "Breakfast nook",
+  patio: "Patio",
+  pool: "Pool",
+  backyard: "Backyard / lawn",
+};
+const ORDER_PHOTOS_TABLE = "Order Photos";
 
 // Trim + cap a client string; never trust length or type.
 function str(v, max) { return typeof v === "string" ? v.trim().slice(0, max) : ""; }
@@ -72,11 +89,22 @@ export default async function handler(req, res) {
       res.status(400).json({ error: "Missing or invalid address, agent name, or email." }); return;
     }
 
-    // Photos: only URLs from our own Cloudinary account, capped.
-    let photoUrls = Array.isArray(o.photoUrls) ? o.photoUrls : [];
-    photoUrls = photoUrls
-      .filter((u) => typeof u === "string" && u.length <= 500 && u.startsWith(CLOUDINARY_PREFIX))
-      .slice(0, MAX_PHOTOS);
+    // Photos: one per room slot — [{room, url}]. The room id is the routing key
+    // that later drives which Magnific compose node the photo lands on.
+    const expectedPhotos = pkg.rooms + extraRooms;
+    const photos = Array.isArray(o.photos) ? o.photos : [];
+    if (photos.length !== expectedPhotos) {
+      res.status(400).json({ error: `Please add one photo for each of your ${expectedPhotos} rooms (refresh the page if the form looks outdated).` }); return;
+    }
+    const seenRooms = new Set();
+    for (const p of photos) {
+      const ok = p && typeof p === "object"
+        && ROOM_TYPES[p.room] && !seenRooms.has(p.room)
+        && typeof p.url === "string" && p.url.length <= 500 && p.url.startsWith(CLOUDINARY_PREFIX);
+      if (!ok) { res.status(400).json({ error: "Invalid photo set — please refresh the page and try again." }); return; }
+      seenRooms.add(p.room);
+    }
+    const photoUrls = photos.map((p) => p.url);
 
     // Server-computed line items + total (canonical).
     const lineItems = [[`Package — ${pkg.name}`, pkg.price]];
@@ -144,6 +172,30 @@ export default async function handler(req, res) {
       res.status(502).json({ error: "We couldn't save your order. Please try again or email us." }); return;
     }
     const record = await atRes.json();
+
+    // ---- 1b. Write one Order Photos row per photo (the room mapping that drives
+    //          automated production). Non-fatal: payment must not break if this
+    //          hiccups — rows can be rebuilt from Listing Photos + a human look.
+    try {
+      for (let i = 0; i < photos.length; i += 10) {
+        const batch = photos.slice(i, i + 10).map((p, j) => ({
+          fields: {
+            "Photo": `${ROOM_TYPES[p.room]} — ${address}`,
+            "Order": [record.id],
+            "Room Type": ROOM_TYPES[p.room],
+            "Slot Order": i + j + 1,
+            "Cloudinary URL": p.url,
+            "Status": "uploaded",
+          },
+        }));
+        const opRes = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(ORDER_PHOTOS_TABLE)}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ records: batch, typecast: true }),
+        });
+        if (!opRes.ok) console.error("Order Photos batch failed:", opRes.status, (await opRes.text()).slice(0, 300));
+      }
+    } catch (e) { console.error("Order Photos write failed:", String(e)); }
 
     // ---- 2. Create the Stripe Checkout session from SERVER-priced line items ----
     const params = new URLSearchParams();

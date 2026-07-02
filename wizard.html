@@ -129,16 +129,25 @@
   <div class="steps" id="steps"></div>
   <div class="layout">
     <div>
-      <!-- STEP: UPLOAD -->
+      <!-- STEP: UPLOAD (labeled room slots — one photo per room, the drop IS the room mapping) -->
       <div class="panel step" data-key="photos">
+        <style>
+          .slotgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:6px}
+          .slot{border:1.5px dashed var(--line);border-radius:14px;padding:12px;background:#fffdf8}
+          .slot.filled{border-style:solid;border-color:var(--accent)}
+          .slot .slothead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+          .slot select{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);border-radius:8px;padding:5px 6px;background:#fff;max-width:100%}
+          .slot .zone{display:block;cursor:pointer;border-radius:10px;background:var(--tint,#f6f1e7);min-height:96px;display:grid;place-items:center;font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px;overflow:hidden}
+          .slot .zone img{width:100%;height:120px;object-fit:cover;border-radius:10px;display:block}
+          .slot .ok{font-size:11.5px;color:var(--accent-d);font-weight:700;margin-top:6px;word-break:break-all}
+          .slotchip{display:inline-block;font-size:12.5px;font-weight:700;background:var(--tint,#f6f1e7);border:1px solid var(--line);border-radius:999px;padding:6px 14px;margin-bottom:6px;color:var(--ink)}
+        </style>
         <div class="eyebrow"></div>
         <h2>Upload your listing photos</h2>
-        <p class="sub">Drop in the hero shots you'd normally use — exterior, kitchen, living, primary bedroom, outdoor. We keep your exact rooms; we only add the lifestyle.</p>
-        <label class="drop">📸 &nbsp;Click to add photos &nbsp;·&nbsp; JPG / PNG
-          <input id="photoInput" type="file" accept="image/*" multiple hidden>
-        </label>
-        <div class="thumbs" id="thumbs"></div>
-        <div class="navbtns"><span></span><button class="next" onclick="goRel(1)">Continue →</button></div>
+        <p class="sub">One photo per room — drop each photo into its matching slot so we stage the right scene in the right room. Slot not right for your listing? Use its dropdown to switch it to another room type.</p>
+        <div class="slotchip" id="slotChip"></div>
+        <div class="slotgrid" id="slots"></div>
+        <div class="navbtns"><button class="back" onclick="goRel(-1)">← Back</button><button class="next" onclick="photosNext()">Continue →</button></div>
       </div>
 
       <!-- STEP: PACKAGE -->
@@ -147,7 +156,7 @@
         <h2>Choose your film</h2>
         <p class="sub">More rooms and a longer runtime tell a richer story. Every film includes a custom voiceover, your branding, and the on-screen AI disclosure.</p>
         <div class="grid g3" id="packages"></div>
-        <div class="navbtns"><button class="back" onclick="goRel(-1)">← Back</button><button class="next" onclick="goRel(1)">Continue →</button></div>
+        <div class="navbtns"><span></span><button class="next" onclick="goRel(1)">Continue →</button></div>
       </div>
 
       <!-- STEP: FAMILY -->
@@ -245,14 +254,76 @@ const FORMATS=[
   {id:'1:1',cls:'s',name:'Square',sub:'feed posts',price:75,locked:false},
 ];
 
+// --- THE CANONICAL 12 ROOM TYPES (must match Prompt_Engine.md + the Airtable Room Type options) ---
+const ROOMS=[
+  {id:'front_exterior',name:'Front exterior'},
+  {id:'kitchen',name:'Kitchen'},
+  {id:'foyer',name:'Foyer'},
+  {id:'living',name:'Living room'},
+  {id:'dining',name:'Dining'},
+  {id:'primary_bedroom',name:'Primary bedroom'},
+  {id:'game_room',name:'Game room'},
+  {id:'media_room',name:'Media room'},
+  {id:'nook',name:'Breakfast nook'},
+  {id:'patio',name:'Patio'},
+  {id:'pool',name:'Pool'},
+  {id:'backyard',name:'Backyard / lawn'},
+];
+// Default slot sets per package (client can re-assign any slot via its dropdown)
+const DEFAULT_SET={
+  essential:['front_exterior','kitchen','living','dining','primary_bedroom','patio'],
+  signature:['front_exterior','kitchen','living','dining','primary_bedroom','patio','pool','nook'],
+  showcase:ROOMS.map(r=>r.id),
+};
+
 // --- step model (array-driven so the optional Music step inserts/hides cleanly) ---
-const ALL_STEPS=['photos','package','family','music','extras','branding','review'];
+// Film comes FIRST and Photos comes AFTER Extras so the slot count = package rooms + extra rooms.
+const ALL_STEPS=['package','family','music','extras','photos','branding','review'];
 const LABELS={photos:'Photos',package:'Film',family:'Family',music:'Music',extras:'Extras',branding:'Branding',review:'Review'};
 const SUFFIX={extras:' · optional',music:' · optional'};
 let SOUNDTRACKS=[];                       // filled from /api/soundtracks; empty => Music step hidden
 function activeSteps(){return ALL_STEPS.filter(k=>k!=='music'||SOUNDTRACKS.length>0);}
 
-const S={pkg:'essential',fam:'carters',addons:new Set(),extraRooms:0,fmt:new Set(['16:9','9:16']),stepKey:'photos',photos:[],soundtrack:'auto'};
+const S={pkg:'essential',fam:'carters',addons:new Set(),extraRooms:0,fmt:new Set(['16:9','9:16']),stepKey:'package',slots:[],soundtrack:'auto'};
+
+// --- labeled photo slots -------------------------------------------------
+function totalRooms(){return PACKAGES.find(x=>x.id===S.pkg).rooms+S.extraRooms;}
+function usedRooms(except){return new Set(S.slots.filter((_,i)=>i!==except).map(s=>s.room));}
+function nextFreeRoom(){const u=usedRooms(-1);const r=ROOMS.find(r=>!u.has(r.id));return r?r.id:ROOMS[0].id;}
+// Rebuild the slot list when package / extra rooms change, keeping existing photos where possible.
+function syncSlots(){
+  const n=totalRooms();
+  if(S.slots.length===0)S.slots=DEFAULT_SET[S.pkg].slice(0,n).map(id=>({room:id,file:null}));
+  while(S.slots.length<n)S.slots.push({room:nextFreeRoom(),file:null});
+  if(S.slots.length>n)S.slots=S.slots.slice(0,n);
+  // if the package changed to a bigger default set, prefer its defaults for empty unassigned tails
+  renderSlots();
+}
+function roomName(id){const r=ROOMS.find(r=>r.id===id);return r?r.name:id;}
+function renderSlots(){
+  const el=document.getElementById('slots');if(!el)return;
+  const p=PACKAGES.find(x=>x.id===S.pkg);
+  const filled=S.slots.filter(s=>s.file).length;
+  document.getElementById('slotChip').textContent=`${p.name}${S.extraRooms?` + ${S.extraRooms} extra room${S.extraRooms>1?'s':''}`:''} · ${filled} of ${S.slots.length} photos added`;
+  el.innerHTML=S.slots.map((s,i)=>{
+    const u=usedRooms(i);
+    const opts=ROOMS.filter(r=>r.id===s.room||!u.has(r.id))
+      .map(r=>`<option value="${r.id}" ${r.id===s.room?'selected':''}>${r.name}</option>`).join('');
+    return `<div class="slot ${s.file?'filled':''}">
+      <div class="slothead"><select onchange="slotRoom(${i},this.value)" aria-label="Room type for slot ${i+1}">${opts}</select>${s.file?'<span style="color:var(--accent-d);font-weight:800">✓</span>':''}</div>
+      <label class="zone">${s.file?`<img src="${URL.createObjectURL(s.file)}" alt="">`:`📸 Drop the ${roomName(s.room).toLowerCase()} photo here<br>or click to choose · JPG/PNG`}
+        <input type="file" accept="image/*" hidden onchange="slotFile(${i},this)">
+      </label>
+      ${s.file?`<div class="ok">${s.file.name}</div>`:''}
+    </div>`;}).join('');
+}
+function slotRoom(i,id){S.slots[i].room=id;renderSlots();}
+function slotFile(i,input){if(input.files&&input.files[0])S.slots[i].file=input.files[0];renderSlots();}
+function photosNext(){
+  const missing=S.slots.filter(s=>!s.file);
+  if(missing.length){alert(`Please add a photo for: ${missing.map(s=>roomName(s.room)).join(', ')}. Every room in your film needs its photo.`);return;}
+  goRel(1);
+}
 
 function renderPackages(){document.getElementById('packages').innerHTML=PACKAGES.map(p=>`
   <div class="opt ${S.pkg===p.id?'sel':''}" onclick="pick('pkg','${p.id}')"><span class="tick">✓</span>
@@ -322,10 +393,10 @@ function renderReview(){const p=PACKAGES.find(x=>x.id===S.pkg),f=FAMILIES.find(x
    `<div class="review-line"><span>Family</span><span>${f.name}</span></div>`+
    musicRow+
    `<div class="review-line"><span>Formats</span><span>${[...S.fmt].join(' + ')}</span></div>`+
-   `<div class="review-line"><span>Photos uploaded</span><span>${S.photos.length}</span></div>`+rows+
+   `<div class="review-line"><span>Rooms / photos</span><span>${S.slots.filter(s=>s.file).length} — ${S.slots.map(s=>roomName(s.room)).join(', ')}</span></div>`+rows+
    `<div class="review-line"><span>Total</span><span>$${total().toLocaleString()}</span></div>`;}
 
-function pick(k,v){if(k==='pkg'){S.pkg=v;rooms(0);}if(k==='fam')S.fam=v;renderPackages();renderFamilies();renderSummary();}
+function pick(k,v){if(k==='pkg'){S.pkg=v;S.slots=[];rooms(0);syncSlots();}if(k==='fam')S.fam=v;renderPackages();renderFamilies();renderSummary();}
 function toggleAddon(id){S.addons.has(id)?S.addons.delete(id):S.addons.add(id);renderAddons();renderSummary();}
 function toggleFmt(id,locked){if(locked)return;S.fmt.has(id)?S.fmt.delete(id):S.fmt.add(id);renderFormats();renderSummary();}
 // The room catalog has exactly 12 types (see Prompt_Engine.md) — extras can only top a package up to 12 total.
@@ -334,11 +405,9 @@ function rooms(d){const cap=EXTRA_ROOM_CAP[S.pkg];S.extraRooms=Math.max(0,Math.m
   document.getElementById('roomVal').textContent=`+${S.extraRooms} room${S.extraRooms!==1?'s':''}`;
   const hint=document.getElementById('roomHint');
   if(hint)hint.innerHTML=cap===0?'The Showcase already includes every room type in our 12-room catalog.':`Add more scenes beyond your package. <b>$60</b> each (up to ${cap} more — our catalog covers 12 room types).`;
-  renderSummary();}
+  syncSlots();renderSummary();}
 
-document.getElementById('photoInput').addEventListener('change',e=>{
-  S.photos=[...e.target.files];
-  document.getElementById('thumbs').innerHTML=S.photos.map(f=>`<img class="thumb" src="${URL.createObjectURL(f)}">`).join('');});
+// (single-dropzone listener removed — photos are captured per labeled room slot above)
 
 // --- navigation (key-based) ---
 function go(key){const steps=activeSteps();if(steps.indexOf(key)<0)key=steps[0];
@@ -357,34 +426,35 @@ function goRel(dir){const steps=activeSteps();const idx=steps.indexOf(S.stepKey)
 // --- Cloudinary direct-from-browser upload (non-secret: cloud name + unsigned preset) ---
 const CLOUD_NAME='f2kjjypa';
 const UPLOAD_PRESET='homereel_unsigned';
+// Uploads each slot's photo and returns [{room, url}] — the room mapping travels with the URL.
 async function uploadPhotos(onProgress){
-  const urls=[];
-  for(let i=0;i<S.photos.length;i++){
+  const out=[];
+  for(let i=0;i<S.slots.length;i++){
     const fd=new FormData();
-    fd.append('file',S.photos[i]);
+    fd.append('file',S.slots[i].file);
     fd.append('upload_preset',UPLOAD_PRESET);
     const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,{method:'POST',body:fd});
     if(!res.ok)throw new Error('photo upload failed');
     const d=await res.json();
-    urls.push(d.secure_url);
-    if(onProgress)onProgress(i+1,S.photos.length);
+    out.push({room:S.slots[i].room,url:d.secure_url});
+    if(onProgress)onProgress(i+1,S.slots.length);
   }
-  return urls;
+  return out;
 }
 
 async function submitOrder(){
   if(!document.getElementById('mls').checked){alert('Please acknowledge the social-only / not-for-MLS notice to continue.');return;}
   const addr=document.getElementById('address').value,ag=document.getElementById('agent').value,em=document.getElementById('email').value;
   if(!addr||!ag||!em){alert('Please fill in property address, agent name, and email (Branding step).');go('branding');return;}
+  const missing=S.slots.filter(s=>!s.file);
+  if(missing.length){alert(`Please add a photo for: ${missing.map(s=>roomName(s.room)).join(', ')}.`);go('photos');return;}
   const btn=document.getElementById('payBtn');btn.disabled=true;
   const st=chosenSoundtrack();
-  // 1) upload the listing photos straight to Cloudinary, collect their links
-  let photoUrls=[];
+  // 1) upload the listing photos straight to Cloudinary, keeping each photo's room label
+  let photos=[];
   try{
-    if(S.photos.length){
-      btn.textContent=`Uploading photos… 0/${S.photos.length}`;
-      photoUrls=await uploadPhotos((n,t)=>{btn.textContent=`Uploading photos… ${n}/${t}`;});
-    }
+    btn.textContent=`Uploading photos… 0/${S.slots.length}`;
+    photos=await uploadPhotos((n,t)=>{btn.textContent=`Uploading photos… ${n}/${t}`;});
   }catch(e){
     alert('Your photos could not be uploaded. Please check your connection and try again.');
     btn.disabled=false;btn.textContent='Continue to secure payment →';return;
@@ -401,7 +471,8 @@ async function submitOrder(){
     addonIds:[...S.addons],
     extraRooms:S.extraRooms,
     formatIds:[...S.fmt],
-    mls:true,photoCount:S.photos.length,photoUrls:photoUrls,
+    mls:true,
+    photos:photos,                       // [{room, url}] — one per labeled slot, the room mapping
     total:total()                        // display total — server recomputes + cross-checks only
   };
   try{
@@ -413,7 +484,7 @@ async function submitOrder(){
   btn.disabled=false;btn.textContent='Continue to secure payment →';
 }
 
-renderPackages();renderFamilies();renderAddons();renderFormats();rooms(0);renderSummary();renderMusic();renderSteps();go('photos');
+renderPackages();renderFamilies();renderAddons();renderFormats();rooms(0);syncSlots();renderSummary();renderMusic();renderSteps();go('package');
 loadSoundtracks();   // async; reveals the Music step only if active tracks come back
 </script>
 </body>
