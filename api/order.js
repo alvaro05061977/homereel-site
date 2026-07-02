@@ -17,10 +17,12 @@ const SOUNDTRACKS_TABLE = "Soundtracks";
 const SITE = "https://homereel-site.vercel.app";
 
 // ---- Canonical catalog: the ONLY source of prices. ----
+// extraRoomCap: the canonical room catalog has exactly 12 types (Prompt_Engine.md),
+// so extras can only top a package up to 12 total rooms.
 const PACKAGES = {
-  essential: { name: "Essential", price: 500 },
-  signature: { name: "Signature", price: 750 },
-  showcase:  { name: "Showcase",  price: 1200 },
+  essential: { name: "Essential", price: 500, extraRoomCap: 6 },
+  signature: { name: "Signature", price: 750, extraRoomCap: 4 },
+  showcase:  { name: "Showcase",  price: 1200, extraRoomCap: 0 },
 };
 const ADDONS = {
   avatar:        { lineName: "Star in your own film",         airtable: "Agent avatar (+$250)",  price: 250 },
@@ -34,7 +36,6 @@ const FORMATS = {
 };
 const FAMILIES = { carters: "The Carters" };
 const EXTRA_ROOM_PRICE = 60;
-const MAX_EXTRA_ROOMS = 8;
 const MAX_PHOTOS = 40;
 const CLOUDINARY_PREFIX = "https://res.cloudinary.com/f2kjjypa/";
 
@@ -64,7 +65,7 @@ export default async function handler(req, res) {
     if (formatIds.some((id) => !FORMATS[id])) { res.status(400).json({ error: "Unknown format." }); return; }
 
     const extraRooms = Number.isInteger(o.extraRooms) ? o.extraRooms : parseInt(o.extraRooms, 10) || 0;
-    if (extraRooms < 0 || extraRooms > MAX_EXTRA_ROOMS) { res.status(400).json({ error: "Invalid extra room count." }); return; }
+    if (extraRooms < 0 || extraRooms > pkg.extraRoomCap) { res.status(400).json({ error: "Invalid extra room count." }); return; }
 
     const address = str(o.address, 200), agent = str(o.agent, 120), email = str(o.email, 200);
     if (!address || !agent || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

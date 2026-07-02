@@ -175,7 +175,7 @@
         <p class="sub">Optional upgrades — add them now or skip.</p>
         <div id="addons"></div>
         <h3 style="font-family:'Space Grotesk';font-weight:600;font-size:15px;margin:22px 0 8px">Extra rooms</h3>
-        <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">Add more scenes beyond your package. <b>$60</b> each.</p>
+        <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px" id="roomHint">Add more scenes beyond your package. <b>$60</b> each.</p>
         <div class="stepper"><button onclick="rooms(-1)">−</button><div class="val" id="roomVal">+0 rooms</div><button onclick="rooms(1)">+</button></div>
         <h3 style="font-family:'Space Grotesk';font-weight:600;font-size:15px;margin:24px 0 8px">Delivery formats</h3>
         <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">Widescreen + vertical are included. Add square for feed posts.</p>
@@ -325,10 +325,16 @@ function renderReview(){const p=PACKAGES.find(x=>x.id===S.pkg),f=FAMILIES.find(x
    `<div class="review-line"><span>Photos uploaded</span><span>${S.photos.length}</span></div>`+rows+
    `<div class="review-line"><span>Total</span><span>$${total().toLocaleString()}</span></div>`;}
 
-function pick(k,v){if(k==='pkg')S.pkg=v;if(k==='fam')S.fam=v;renderPackages();renderFamilies();renderSummary();}
+function pick(k,v){if(k==='pkg'){S.pkg=v;rooms(0);}if(k==='fam')S.fam=v;renderPackages();renderFamilies();renderSummary();}
 function toggleAddon(id){S.addons.has(id)?S.addons.delete(id):S.addons.add(id);renderAddons();renderSummary();}
 function toggleFmt(id,locked){if(locked)return;S.fmt.has(id)?S.fmt.delete(id):S.fmt.add(id);renderFormats();renderSummary();}
-function rooms(d){S.extraRooms=Math.max(0,Math.min(8,S.extraRooms+d));document.getElementById('roomVal').textContent=`+${S.extraRooms} room${S.extraRooms!==1?'s':''}`;renderSummary();}
+// The room catalog has exactly 12 types (see Prompt_Engine.md) — extras can only top a package up to 12 total.
+const EXTRA_ROOM_CAP={essential:6,signature:4,showcase:0};
+function rooms(d){const cap=EXTRA_ROOM_CAP[S.pkg];S.extraRooms=Math.max(0,Math.min(cap,S.extraRooms+d));
+  document.getElementById('roomVal').textContent=`+${S.extraRooms} room${S.extraRooms!==1?'s':''}`;
+  const hint=document.getElementById('roomHint');
+  if(hint)hint.innerHTML=cap===0?'The Showcase already includes every room type in our 12-room catalog.':`Add more scenes beyond your package. <b>$60</b> each (up to ${cap} more — our catalog covers 12 room types).`;
+  renderSummary();}
 
 document.getElementById('photoInput').addEventListener('change',e=>{
   S.photos=[...e.target.files];
@@ -407,7 +413,7 @@ async function submitOrder(){
   btn.disabled=false;btn.textContent='Continue to secure payment →';
 }
 
-renderPackages();renderFamilies();renderAddons();renderFormats();renderSummary();renderMusic();renderSteps();go('photos');
+renderPackages();renderFamilies();renderAddons();renderFormats();rooms(0);renderSummary();renderMusic();renderSteps();go('photos');
 loadSoundtracks();   // async; reveals the Music step only if active tracks come back
 </script>
 </body>
