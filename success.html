@@ -3,28 +3,65 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Order received — HomeReel</title>
+<title>Order status — HomeReel</title>
 <style>
-  :root{--ink:#1c2622;--ink-soft:#5b6661;--line:#e6e2d9;--paper:#faf8f3;--accent:#2f6b54;--accent-d:#234f3f}
+  :root{--ink:#1c2622;--ink-soft:#5b6661;--line:#e6e2d9;--paper:#faf8f3;--accent:#2f6b54;--accent-d:#234f3f;--warn:#a05a2c}
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:system-ui,-apple-system,sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;display:grid;place-items:center;min-height:100vh;text-align:center;padding:24px}
   h1{font-family:Georgia,serif;font-size:34px;margin-bottom:12px}
   p{color:var(--ink-soft);max-width:50ch;margin:0 auto 10px}
   .ring{width:78px;height:78px;border-radius:50%;background:#eef3ef;border:2px solid var(--accent);display:grid;place-items:center;font-size:36px;color:var(--accent);margin:0 auto 22px}
+  .ring.warn{background:#f6efe7;border-color:var(--warn);color:var(--warn)}
   .btn{display:inline-block;margin-top:22px;background:var(--accent);color:#fff;padding:13px 28px;border-radius:11px;font-weight:600;text-decoration:none}
   .logo{font-family:Georgia,serif;font-size:22px;font-weight:700;margin-bottom:30px;display:flex;gap:9px;align-items:center;justify-content:center}
   .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px rgba(47,107,84,.15)}
   .note{margin-top:24px;font-size:13px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;max-width:52ch}
+  .hide{display:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spinner{width:26px;height:26px;border:3px solid #d8e3dc;border-top-color:var(--accent);border-radius:50%;animation:spin .9s linear infinite}
 </style>
 </head>
 <body>
   <div>
     <div class="logo"><span class="dot"></span> HomeReel</div>
-    <div class="ring">✓</div>
-    <h1>Your film is in production</h1>
-    <p>Payment received — thank you. We'll email you at every milestone and deliver your finished widescreen + vertical cuts within about 48 hours.</p>
-    <div class="note">Our team composes your chosen family into your exact rooms, animates each scene, adds your voiceover and branding, and runs a human quality check before delivery. Nothing ships until it looks right. Films carry a permanent AI-disclosure and are for social advertising, not MLS.</div>
-    <a class="btn" href="/">Back to home</a>
+
+    <!-- State 1: verifying with Stripe -->
+    <div id="checking">
+      <div class="ring"><span class="spinner"></span></div>
+      <h1>Confirming your payment…</h1>
+      <p>One moment — we're verifying your payment with Stripe.</p>
+    </div>
+
+    <!-- State 2: verified paid -->
+    <div id="paid" class="hide">
+      <div class="ring">✓</div>
+      <h1>Your film is in production</h1>
+      <p>Payment received — thank you. We'll email you at every milestone and deliver your finished widescreen + vertical cuts within about 48 hours.</p>
+      <div class="note">Our team composes your chosen family into your exact rooms, animates each scene, adds your voiceover and branding, and runs a human quality check before delivery. Nothing ships until it looks right. Films carry a permanent AI-disclosure and are for social advertising, not MLS.</div>
+      <a class="btn" href="/">Back to home</a>
+    </div>
+
+    <!-- State 3: not paid / unknown -->
+    <div id="notpaid" class="hide">
+      <div class="ring warn">!</div>
+      <h1>Payment not completed</h1>
+      <p>We couldn't confirm a completed payment for this order. If you just paid by card, give it a few seconds and refresh this page. If you left checkout early, your order hasn't been charged — you can start again below.</p>
+      <p>Think this is a mistake? Email us and we'll sort it out right away.</p>
+      <a class="btn" href="/wizard.html">Return to order form</a>
+    </div>
   </div>
+
+<script>
+(function(){
+  var show=function(id){['checking','paid','notpaid'].forEach(function(x){
+    document.getElementById(x).classList.toggle('hide',x!==id);});};
+  var cs=new URLSearchParams(location.search).get('cs');
+  if(!cs){show('notpaid');return;}
+  fetch('/api/session-status?cs='+encodeURIComponent(cs))
+    .then(function(r){return r.json();})
+    .then(function(d){show(d&&d.paid?'paid':'notpaid');})
+    .catch(function(){show('notpaid');});
+})();
+</script>
 </body>
 </html>
