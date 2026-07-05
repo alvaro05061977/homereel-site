@@ -53,6 +53,9 @@ const ROOM_TYPES = {
   patio: "Patio",
   pool: "Pool",
   backyard: "Backyard / lawn",
+  // Escape hatch (matches FLEX in wizard.html). May repeat across slots. Routes to
+  // a generic staging recipe. "typecast: true" auto-creates this Room Type option.
+  other: "Other room",
 };
 const ORDER_PHOTOS_TABLE = "Order Photos";
 
@@ -96,13 +99,13 @@ export default async function handler(req, res) {
     if (photos.length !== expectedPhotos) {
       res.status(400).json({ error: `Please add one photo for each of your ${expectedPhotos} rooms (refresh the page if the form looks outdated).` }); return;
     }
-    const seenRooms = new Set();
+    // Room ids must be valid types; duplicates ARE allowed (a client may reuse a
+    // room type or "Other room" across multiple scenes). Count is enforced above.
     for (const p of photos) {
       const ok = p && typeof p === "object"
-        && ROOM_TYPES[p.room] && !seenRooms.has(p.room)
+        && ROOM_TYPES[p.room]
         && typeof p.url === "string" && p.url.length <= 500 && p.url.startsWith(CLOUDINARY_PREFIX);
       if (!ok) { res.status(400).json({ error: "Invalid photo set — please refresh the page and try again." }); return; }
-      seenRooms.add(p.room);
     }
     const photoUrls = photos.map((p) => p.url);
 

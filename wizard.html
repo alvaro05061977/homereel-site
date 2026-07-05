@@ -144,7 +144,7 @@
         </style>
         <div class="eyebrow"></div>
         <h2>Upload your listing photos</h2>
-        <p class="sub">One photo per room — drop each photo into its matching slot so we stage the right scene in the right room. Slot not right for your listing? Use its dropdown to switch it to another room type.</p>
+        <p class="sub">One photo per scene — drop each photo into its matching slot so we stage the right room. Don't have one of these rooms, or want to feature a different space? Switch any slot's dropdown to another room type or to "Something else" and upload whatever you like — we'll stage it to match.</p>
         <div class="slotchip" id="slotChip"></div>
         <div class="slotgrid" id="slots"></div>
         <div class="navbtns"><button class="back" onclick="goRel(-1)">← Back</button><button class="next" onclick="photosNext()">Continue →</button></div>
@@ -269,6 +269,11 @@ const ROOMS=[
   {id:'pool',name:'Pool'},
   {id:'backyard',name:'Backyard / lawn'},
 ];
+// Escape hatch: always available in every slot, and may be used in more than one
+// slot. Lets a client who lacks a catalog room (or wants a different space —
+// office, gym, study, a second angle) still fill the slot. Routes to a generic
+// staging recipe in production. Must match ROOM_TYPES.other in api/order.js.
+const FLEX={id:'other',name:'Something else'};
 // Default slot sets per package (client can re-assign any slot via its dropdown)
 const DEFAULT_SET={
   essential:['front_exterior','kitchen','living','dining','primary_bedroom','patio'],
@@ -299,19 +304,23 @@ function syncSlots(){
   // if the package changed to a bigger default set, prefer its defaults for empty unassigned tails
   renderSlots();
 }
-function roomName(id){const r=ROOMS.find(r=>r.id===id);return r?r.name:id;}
+function roomName(id){const r=[...ROOMS,FLEX].find(r=>r.id===id);return r?r.name:id;}
 function renderSlots(){
   const el=document.getElementById('slots');if(!el)return;
   const p=PACKAGES.find(x=>x.id===S.pkg);
   const filled=S.slots.filter(s=>s.file).length;
   document.getElementById('slotChip').textContent=`${p.name}${S.extraRooms?` + ${S.extraRooms} extra room${S.extraRooms>1?'s':''}`:''} · ${filled} of ${S.slots.length} photos added`;
   el.innerHTML=S.slots.map((s,i)=>{
-    const u=usedRooms(i);
-    const opts=ROOMS.filter(r=>r.id===s.room||!u.has(r.id))
+    // Every room type is always offered (plus "Something else"); duplicates allowed,
+    // so a slot can always be re-pointed even when the package uses the full catalog.
+    const opts=[...ROOMS,FLEX]
       .map(r=>`<option value="${r.id}" ${r.id===s.room?'selected':''}>${r.name}</option>`).join('');
+    const ph=s.room==='other'
+      ? `📸 Drop your photo here<br>or click to choose · JPG/PNG`
+      : `📸 Drop the ${roomName(s.room).toLowerCase()} photo here<br>or click to choose · JPG/PNG`;
     return `<div class="slot ${s.file?'filled':''}">
       <div class="slothead"><select onchange="slotRoom(${i},this.value)" aria-label="Room type for slot ${i+1}">${opts}</select>${s.file?'<span style="color:var(--accent-d);font-weight:800">✓</span>':''}</div>
-      <label class="zone">${s.file?`<img src="${URL.createObjectURL(s.file)}" alt="">`:`📸 Drop the ${roomName(s.room).toLowerCase()} photo here<br>or click to choose · JPG/PNG`}
+      <label class="zone">${s.file?`<img src="${URL.createObjectURL(s.file)}" alt="">`:ph}
         <input type="file" accept="image/*" hidden onchange="slotFile(${i},this)">
       </label>
       ${s.file?`<div class="ok">${s.file.name}</div>`:''}
