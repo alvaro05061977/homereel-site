@@ -109,6 +109,12 @@ export default async function handler(req, res) {
     }
     const photoUrls = photos.map((p) => p.url);
 
+    // Realtor headshot — required, appears on the code-built end card (left panel).
+    const headshotUrl = str(o.headshotUrl, 500);
+    if (!headshotUrl || !headshotUrl.startsWith(CLOUDINARY_PREFIX)) {
+      res.status(400).json({ error: "Please add your headshot photo — please refresh the page and try again." }); return;
+    }
+
     // Server-computed line items + total (canonical).
     const lineItems = [[`Package — ${pkg.name}`, pkg.price]];
     for (const id of Object.keys(ADDONS)) {
@@ -161,9 +167,10 @@ export default async function handler(req, res) {
       "Payment Status": "Unpaid",                              // flipped to Paid ONLY by the Stripe webhook
       "Job Status": "New",
       "Order Date": new Date().toISOString().slice(0, 10),
-      "Notes": `Server-verified total $${total}. ${photoUrls.length} listing photo(s) attached.`,
+      "Notes": `Server-verified total $${total}. ${photoUrls.length} listing photo(s) + headshot attached.`,
     };
     if (photoUrls.length) fields["Listing Photos"] = photoUrls.map((u) => ({ url: u }));
+    fields["Realtor Headshot"] = [{ url: headshotUrl }];
 
     const atRes = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(AIRTABLE_TABLE)}`, {
       method: "POST",

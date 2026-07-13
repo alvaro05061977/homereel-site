@@ -192,6 +192,20 @@
         <div class="navbtns"><button class="back" onclick="goRel(-1)">← Back</button><button class="next" onclick="goRel(1)">Continue →</button></div>
       </div>
 
+      <!-- STEP: HEADSHOT -->
+      <div class="panel step hide" data-key="headshot">
+        <div class="eyebrow"></div>
+        <h2>Your headshot</h2>
+        <p class="sub">Upload a professional photo of yourself — it appears on your film's end card alongside your branding.</p>
+        <div class="disclosure" style="margin-bottom:16px"><b>Photo guidelines.</b> Square crop (1:1) preferred · at least 300×300px, under 5MB · well-lit face, professional dress · JPG or PNG.</div>
+        <label class="drop" id="headshotDrop">
+          <span id="headshotLabel">📸 Click to add your headshot<br>or drag and drop · JPG/PNG</span>
+          <input type="file" accept="image/jpeg,image/png" hidden onchange="headshotFile(this)">
+        </label>
+        <div id="headshotPreview"></div>
+        <div class="navbtns"><button class="back" onclick="goRel(-1)">← Back</button><button class="next" onclick="headshotNext()">Continue →</button></div>
+      </div>
+
       <!-- STEP: BRANDING -->
       <div class="panel step hide" data-key="branding">
         <div class="eyebrow"></div>
@@ -283,13 +297,38 @@ const DEFAULT_SET={
 
 // --- step model (array-driven so the optional Music step inserts/hides cleanly) ---
 // Film comes FIRST and Photos comes AFTER Extras so the slot count = package rooms + extra rooms.
-const ALL_STEPS=['package','family','music','extras','photos','branding','review'];
-const LABELS={photos:'Photos',package:'Film',family:'Family',music:'Music',extras:'Extras',branding:'Branding',review:'Review'};
+const ALL_STEPS=['package','family','music','extras','photos','headshot','branding','review'];
+const LABELS={photos:'Photos',package:'Film',family:'Family',music:'Music',extras:'Extras',headshot:'Headshot',branding:'Branding',review:'Review'};
 const SUFFIX={extras:' · optional',music:' · optional'};
 let SOUNDTRACKS=[];                       // filled from /api/soundtracks; empty => Music step hidden
 function activeSteps(){return ALL_STEPS.filter(k=>k!=='music'||SOUNDTRACKS.length>0);}
 
-const S={pkg:'essential',fam:'carters',addons:new Set(),extraRooms:0,fmt:new Set(['16:9','9:16']),stepKey:'package',slots:[],soundtrack:'auto'};
+const S={pkg:'essential',fam:'carters',addons:new Set(),extraRooms:0,fmt:new Set(['16:9','9:16']),stepKey:'package',slots:[],soundtrack:'auto',headshot:null};
+
+// --- realtor headshot (single file, own drop zone — appears on the end card) ---
+function headshotFile(input){if(input.files&&input.files[0]){S.headshot=input.files[0];renderHeadshot();}}
+function renderHeadshot(){
+  const label=document.getElementById('headshotLabel');
+  const prev=document.getElementById('headshotPreview');
+  if(!label||!prev)return;
+  if(S.headshot){
+    label.innerHTML=`✓ Headshot added — click to replace`;
+    prev.innerHTML=`<div class="thumbs" style="grid-template-columns:120px"><img class="thumb" src="${URL.createObjectURL(S.headshot)}" alt=""></div><div class="ok" style="margin-top:8px">${S.headshot.name}</div>`;
+  }else{
+    label.innerHTML=`📸 Click to add your headshot<br>or drag and drop · JPG/PNG`;
+    prev.innerHTML='';
+  }
+}
+function headshotNext(){if(!S.headshot){alert('Please add your headshot photo to continue — it appears on your film\'s end card.');return;}goRel(1);}
+async function uploadHeadshot(){
+  const fd=new FormData();
+  fd.append('file',S.headshot);
+  fd.append('upload_preset',UPLOAD_PRESET);
+  const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,{method:'POST',body:fd});
+  if(!res.ok)throw new Error('headshot upload failed');
+  const d=await res.json();
+  return d.secure_url;
+}
 
 // --- labeled photo slots -------------------------------------------------
 function totalRooms(){return PACKAGES.find(x=>x.id===S.pkg).rooms+S.extraRooms;}
@@ -402,7 +441,8 @@ function renderReview(){const p=PACKAGES.find(x=>x.id===S.pkg),f=FAMILIES.find(x
    `<div class="review-line"><span>Family</span><span>${f.name}</span></div>`+
    musicRow+
    `<div class="review-line"><span>Formats</span><span>${[...S.fmt].join(' + ')}</span></div>`+
-   `<div class="review-line"><span>Rooms / photos</span><span>${S.slots.filter(s=>s.file).length} — ${S.slots.map(s=>roomName(s.room)).join(', ')}</span></div>`+rows+
+   `<div class="review-line"><span>Rooms / photos</span><span>${S.slots.filter(s=>s.file).length} — ${S.slots.map(s=>roomName(s.room)).join(', ')}</span></div>`+
+   `<div class="review-line"><span>Headshot</span><span>${S.headshot?'✓ added':'—'}</span></div>`+rows+
    `<div class="review-line"><span>Total</span><span>$${total().toLocaleString()}</span></div>`;}
 
 function pick(k,v){if(k==='pkg'){S.pkg=v;S.slots=[];rooms(0);syncSlots();}if(k==='fam')S.fam=v;renderPackages();renderFamilies();renderSummary();}
@@ -457,13 +497,16 @@ async function submitOrder(){
   if(!addr||!ag||!em){alert('Please fill in property address, agent name, and email (Branding step).');go('branding');return;}
   const missing=S.slots.filter(s=>!s.file);
   if(missing.length){alert(`Please add a photo for: ${missing.map(s=>roomName(s.room)).join(', ')}.`);go('photos');return;}
+  if(!S.headshot){alert('Please add your headshot photo (Headshot step).');go('headshot');return;}
   const btn=document.getElementById('payBtn');btn.disabled=true;
   const st=chosenSoundtrack();
-  // 1) upload the listing photos straight to Cloudinary, keeping each photo's room label
-  let photos=[];
+  // 1) upload the listing photos + headshot straight to Cloudinary, keeping each photo's room label
+  let photos=[],headshotUrl='';
   try{
     btn.textContent=`Uploading photos… 0/${S.slots.length}`;
     photos=await uploadPhotos((n,t)=>{btn.textContent=`Uploading photos… ${n}/${t}`;});
+    btn.textContent='Uploading headshot…';
+    headshotUrl=await uploadHeadshot();
   }catch(e){
     alert('Your photos could not be uploaded. Please check your connection and try again.');
     btn.disabled=false;btn.textContent='Continue to secure payment →';return;
@@ -482,6 +525,7 @@ async function submitOrder(){
     formatIds:[...S.fmt],
     mls:true,
     photos:photos,                       // [{room, url}] — one per labeled slot, the room mapping
+    headshotUrl:headshotUrl,             // Cloudinary URL — appears on the end card
     total:total()                        // display total — server recomputes + cross-checks only
   };
   try{
