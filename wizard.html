@@ -305,8 +305,37 @@ function activeSteps(){return ALL_STEPS.filter(k=>k!=='music'||SOUNDTRACKS.lengt
 
 const S={pkg:'essential',fam:'carters',addons:new Set(),extraRooms:0,fmt:new Set(['16:9','9:16']),stepKey:'package',slots:[],soundtrack:'auto',headshot:null};
 
+// --- draft persistence -----------------------------------------------------
+// WHY: checkout redirects to Stripe; hitting Back must NOT wipe the order.
+// Scalars + branding fields live in sessionStorage; the photo/headshot files
+// live in IndexedDB (too big for sessionStorage). Restored on page load, and
+// cleared by success.html once payment completes.
+const DRAFT_KEY='homereel_wizard_draft_v1';
+const BRAND_IDS=['address','agent','brokerage','phone','email','handle','vo'];
+function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('homereel_wizard',1);r.onupgradeneeded=()=>r.result.createObjectStore('files');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function idbPut(k,f){try{const db=await idb();db.transaction('files','readwrite').objectStore('files').put({name:f.name,type:f.type,blob:f},k);}catch(e){}}
+async function idbGet(k){try{const db=await idb();return await new Promise(res=>{const rq=db.transaction('files').objectStore('files').get(k);rq.onsuccess=()=>res(rq.result);rq.onerror=()=>res(null);});}catch(e){return null;}}
+async function idbDel(k){try{const db=await idb();db.transaction('files','readwrite').objectStore('files').delete(k);}catch(e){}}
+function saveState(){try{sessionStorage.setItem(DRAFT_KEY,JSON.stringify({
+  pkg:S.pkg,fam:S.fam,addons:[...S.addons],extraRooms:S.extraRooms,fmt:[...S.fmt],
+  stepKey:S.stepKey,soundtrack:S.soundtrack,rooms:S.slots.map(s=>s.room),
+  brand:Object.fromEntries(BRAND_IDS.map(id=>{const el=document.getElementById(id);return [id,el?el.value:''];}))
+}));}catch(e){}}
+async function restoreState(){
+  let d=null;try{d=JSON.parse(sessionStorage.getItem(DRAFT_KEY));}catch(e){}
+  if(!d)return;
+  S.pkg=d.pkg||S.pkg;S.fam=d.fam||S.fam;S.addons=new Set(d.addons||[]);
+  S.extraRooms=d.extraRooms||0;if(d.fmt&&d.fmt.length)S.fmt=new Set(d.fmt);S.soundtrack=d.soundtrack||'auto';
+  if(d.rooms&&d.rooms.length)S.slots=d.rooms.map(r=>({room:r,file:null}));
+  BRAND_IDS.forEach(id=>{const el=document.getElementById(id);if(el&&d.brand&&d.brand[id])el.value=d.brand[id];});
+  for(let i=0;i<S.slots.length;i++){const rec=await idbGet('slot'+i);if(rec&&rec.blob)S.slots[i].file=new File([rec.blob],rec.name||'photo.jpg',{type:rec.type||'image/jpeg'});}
+  const hs=await idbGet('headshot');if(hs&&hs.blob)S.headshot=new File([hs.blob],hs.name||'headshot.jpg',{type:hs.type||'image/jpeg'});
+  renderPackages();renderFamilies();renderAddons();renderFormats();rooms(0);syncSlots();renderSummary();renderHeadshot();
+  go(d.stepKey||'package');
+}
+
 // --- realtor headshot (single file, own drop zone — appears on the end card) ---
-function headshotFile(input){if(input.files&&input.files[0]){S.headshot=input.files[0];renderHeadshot();}}
+function headshotFile(input){if(input.files&&input.files[0]){S.headshot=input.files[0];idbPut('headshot',S.headshot);renderHeadshot();}}
 function renderHeadshot(){
   const label=document.getElementById('headshotLabel');
   const prev=document.getElementById('headshotPreview');
@@ -339,7 +368,7 @@ function syncSlots(){
   const n=totalRooms();
   if(S.slots.length===0)S.slots=DEFAULT_SET[S.pkg].slice(0,n).map(id=>({room:id,file:null}));
   while(S.slots.length<n)S.slots.push({room:nextFreeRoom(),file:null});
-  if(S.slots.length>n)S.slots=S.slots.slice(0,n);
+  if(S.slots.length>n){for(let i=n;i<S.slots.length;i++)idbDel('slot'+i);S.slots=S.slots.slice(0,n);}
   // if the package changed to a bigger default set, prefer its defaults for empty unassigned tails
   renderSlots();
 }
@@ -364,9 +393,10 @@ function renderSlots(){
       </label>
       ${s.file?`<div class="ok">${s.file.name}</div>`:''}
     </div>`;}).join('');
+  saveState();
 }
 function slotRoom(i,id){S.slots[i].room=id;renderSlots();}
-function slotFile(i,input){if(input.files&&input.files[0])S.slots[i].file=input.files[0];renderSlots();}
+function slotFile(i,input){if(input.files&&input.files[0]){S.slots[i].file=input.files[0];idbPut('slot'+i,input.files[0]);}renderSlots();}
 function photosNext(){
   const missing=S.slots.filter(s=>!s.file);
   if(missing.length){alert(`Please add a photo for: ${missing.map(s=>roomName(s.room)).join(', ')}. Every room in your film needs its photo.`);return;}
@@ -445,7 +475,7 @@ function renderReview(){const p=PACKAGES.find(x=>x.id===S.pkg),f=FAMILIES.find(x
    `<div class="review-line"><span>Headshot</span><span>${S.headshot?'✓ added':'—'}</span></div>`+rows+
    `<div class="review-line"><span>Total</span><span>$${total().toLocaleString()}</span></div>`;}
 
-function pick(k,v){if(k==='pkg'){S.pkg=v;S.slots=[];rooms(0);syncSlots();}if(k==='fam')S.fam=v;renderPackages();renderFamilies();renderSummary();}
+function pick(k,v){if(k==='pkg'){S.pkg=v;S.slots=[];for(let i=0;i<12;i++)idbDel('slot'+i);rooms(0);syncSlots();}if(k==='fam')S.fam=v;renderPackages();renderFamilies();renderSummary();saveState();}
 function toggleAddon(id){S.addons.has(id)?S.addons.delete(id):S.addons.add(id);renderAddons();renderSummary();}
 function toggleFmt(id,locked){if(locked)return;S.fmt.has(id)?S.fmt.delete(id):S.fmt.add(id);renderFormats();renderSummary();}
 // The room catalog has exactly 12 types (see Prompt_Engine.md) — extras can only top a package up to 12 total.
@@ -465,7 +495,7 @@ function go(key){const steps=activeSteps();if(steps.indexOf(key)<0)key=steps[0];
   const panel=document.querySelector(`.step[data-key="${key}"]`);
   if(panel){const eb=panel.querySelector('.eyebrow');if(eb)eb.textContent=`Step ${idx+1} of ${steps.length}${SUFFIX[key]||''}`;}
   if(key==='review')renderReview();
-  renderSteps();window.scrollTo({top:0,behavior:'smooth'});}
+  renderSteps();saveState();window.scrollTo({top:0,behavior:'smooth'});}
 function goRel(dir){const steps=activeSteps();const idx=steps.indexOf(S.stepKey);const next=steps[idx+dir];if(next)go(next);}
 
 // Pricing is decided SERVER-SIDE in /api/order from whitelisted IDs. The prices
@@ -539,6 +569,8 @@ async function submitOrder(){
 
 renderPackages();renderFamilies();renderAddons();renderFormats();rooms(0);syncSlots();renderSummary();renderMusic();renderSteps();go('package');
 loadSoundtracks();   // async; reveals the Music step only if active tracks come back
+restoreState();      // async; brings back a draft after the Stripe round-trip (Back button)
+BRAND_IDS.forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',saveState);});
 </script>
 </body>
 </html>

@@ -59,7 +59,8 @@
   if(!cs){show('notpaid');return;}
   fetch('/api/session-status?cs='+encodeURIComponent(cs))
     .then(function(r){return r.json();})
-    .then(function(d){show(d&&d.paid?'paid':'notpaid');})
+    .then(function(d){show(d&&d.paid?'paid':'notpaid');
+      if(d&&d.paid){try{sessionStorage.removeItem('homereel_wizard_draft_v1');indexedDB.deleteDatabase('homereel_wizard');}catch(e){}}})
     .catch(function(){show('notpaid');});
 })();
 </script>
