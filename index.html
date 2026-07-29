@@ -53,7 +53,7 @@
   .ba-panel.is-after{border-color:rgba(232,68,42,.42);box-shadow:0 18px 44px rgba(232,68,42,.18)}
   .ba-panel.needs-tap{cursor:pointer}
   .ba-panel.needs-tap:after{content:"";position:absolute;z-index:3;inset:0;background:rgba(33,26,18,.24)}
-  .ba-panel.needs-tap:before{content:"▶";position:absolute;z-index:4;left:50%;top:50%;transform:translate(-50%,-50%);width:58px;height:58px;padding-left:4px;border-radius:50%;background:rgba(232,68,42,.96);color:#fff;font-size:19px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(33,26,18,.35)}
+  .ba-panel.needs-tap:before{content:"";position:absolute;z-index:4;left:50%;top:50%;transform:translate(-50%,-50%);width:58px;height:58px;border-radius:50%;box-shadow:0 6px 20px rgba(33,26,18,.35);background:rgba(232,68,42,.96) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 6.2v11.6L18.4 12z' fill='%23fff'/%3E%3C/svg%3E") no-repeat center/24px}
   .ba-tag{position:absolute;z-index:5;top:12px;left:12px;background:rgba(253,247,236,.94);color:var(--ink-soft);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:6px 11px;border-radius:7px}
   .ba-tag.hot{background:var(--tomato);color:#fff}
   .ba-room{position:absolute;z-index:5;left:12px;bottom:12px;background:rgba(253,247,236,.92);color:var(--ink);font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:7px}
@@ -321,10 +321,13 @@
     if (held())   { showTap(); return; }
     if (!onScreen) return;
     var p = v.play();
-    if (p && p.catch) p.catch(function(){ if (onScreen && !held()) showTap(); });
+    /* A refused play() can settle AFTER a later attempt already succeeded, so
+       re-check the element's real state before showing the button. */
+    if (p && p.catch) p.catch(function(){ if (v.paused && onScreen && !held()) showTap(); });
   }
 
   v.addEventListener('play', hideTap);
+  v.addEventListener('playing', hideTap);
   v.addEventListener('loadeddata', tryPlay);
   v.addEventListener('canplay', tryPlay);
   document.addEventListener('visibilitychange', function(){ if (!document.hidden) tryPlay(); });
