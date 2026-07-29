@@ -51,9 +51,12 @@
   .ba-panel{position:relative;margin:0;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow)}
   .ba-panel img,.ba-panel video{width:100%;height:100%;object-fit:cover;display:block}
   .ba-panel.is-after{border-color:rgba(232,68,42,.42);box-shadow:0 18px 44px rgba(232,68,42,.18)}
-  .ba-tag{position:absolute;z-index:2;top:12px;left:12px;background:rgba(253,247,236,.94);color:var(--ink-soft);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:6px 11px;border-radius:7px}
+  .ba-panel.needs-tap{cursor:pointer}
+  .ba-panel.needs-tap:after{content:"";position:absolute;z-index:3;inset:0;background:rgba(33,26,18,.24)}
+  .ba-panel.needs-tap:before{content:"▶";position:absolute;z-index:4;left:50%;top:50%;transform:translate(-50%,-50%);width:58px;height:58px;padding-left:4px;border-radius:50%;background:rgba(232,68,42,.96);color:#fff;font-size:19px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(33,26,18,.35)}
+  .ba-tag{position:absolute;z-index:5;top:12px;left:12px;background:rgba(253,247,236,.94);color:var(--ink-soft);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:6px 11px;border-radius:7px}
   .ba-tag.hot{background:var(--tomato);color:#fff}
-  .ba-room{position:absolute;z-index:2;left:12px;bottom:12px;background:rgba(253,247,236,.92);color:var(--ink);font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:7px}
+  .ba-room{position:absolute;z-index:5;left:12px;bottom:12px;background:rgba(253,247,236,.92);color:var(--ink);font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:7px}
   .ba-arrow{display:flex;align-items:center;justify-content:center;justify-self:center;width:34px;height:34px;border-radius:50%;background:var(--tomato);color:#fff;font-size:17px;line-height:1;font-weight:700;box-shadow:0 4px 14px rgba(232,68,42,.35)}
   .ba-note{max-width:62ch;margin:20px auto 0;text-align:center;font-size:14.5px;color:var(--ink-soft)}
   .ba-note b{color:var(--ink);font-weight:600}
@@ -173,9 +176,12 @@
     <div class="ba-arrow" aria-hidden="true">→</div>
     <figure class="ba-panel is-after">
       <span class="ba-tag hot">After<span class="sub"> · your HomeReel film</span></span>
-      <video id="baAfter" src="ba-after-living.mp4" poster="ba-after-living-poster.jpg"
+      <video id="baAfter" poster="ba-after-living-poster.jpg"
              width="1280" height="720" autoplay muted loop playsinline preload="auto"
-             aria-label="The same living room in the finished film — a family playing a board game by the lit fireplace at golden hour."></video>
+             aria-label="The same living room in the finished film — a family playing a board game by the lit fireplace at golden hour.">
+        <source src="ba-after-living.mp4" type="video/mp4">
+        <source src="ba-after-living.webm" type="video/webm">
+      </video>
       <span class="ba-room">Same room · in the film</span>
     </figure>
   </div>
@@ -296,16 +302,59 @@
 </footer>
 
 <script>
-/* Respect reduced-motion: hold the "after" panel on its poster frame. */
+/* "After" panel playback.
+   Phones refuse muted autoplay for reasons the page cannot detect (iOS Low
+   Power Mode, Low Data Mode, Reduce Motion, strict autoplay settings). So we
+   try hard to play, and if the browser still says no we show a tap-to-play
+   button rather than leaving a silently dead still frame. */
 (function(){
-  var v = document.getElementById('baAfter');
-  if (!v) return;
-  var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-  function apply(){ if (mq.matches) { v.removeAttribute('autoplay'); v.pause(); v.currentTime = 0; } else { v.play().catch(function(){}); } }
-  apply();
-  (mq.addEventListener ? mq.addEventListener('change', apply) : mq.addListener(apply));
-  /* Some mobile browsers block autoplay until the tab is visible. */
-  document.addEventListener('visibilitychange', function(){ if (!document.hidden && !mq.matches) v.play().catch(function(){}); });
+  var v = document.getElementById('baAfter'); if (!v) return;
+  var fig = v.parentNode;
+  var mq  = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var onScreen = true, userPaused = false, optedIn = false;
+
+  function showTap(){ fig.classList.add('needs-tap'); }
+  function hideTap(){ fig.classList.remove('needs-tap'); }
+  function held(){ return (mq.matches && !optedIn) || userPaused; }
+
+  function tryPlay(){
+    if (held())   { showTap(); return; }
+    if (!onScreen) return;
+    var p = v.play();
+    if (p && p.catch) p.catch(function(){ if (onScreen && !held()) showTap(); });
+  }
+
+  v.addEventListener('play', hideTap);
+  v.addEventListener('loadeddata', tryPlay);
+  v.addEventListener('canplay', tryPlay);
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) tryPlay(); });
+  (mq.addEventListener ? mq.addEventListener('change', tryPlay) : mq.addListener(tryPlay));
+
+  /* A real gesture anywhere else on the page unlocks playback where autoplay
+     was refused. Gestures inside the panel are left to the toggle below. */
+  var UNLOCK = ['touchend','pointerdown','scroll','keydown'];
+  function unlock(e){
+    if (e && e.target && fig.contains(e.target)) return;
+    UNLOCK.forEach(function(t){ document.removeEventListener(t, unlock); });
+    tryPlay();
+  }
+  UNLOCK.forEach(function(t){ document.addEventListener(t, unlock, {passive:true}); });
+
+  /* Tapping the panel toggles — and is the reduced-motion opt-in. */
+  fig.addEventListener('click', function(){
+    if (v.paused) { optedIn = true; userPaused = false; var p = v.play(); if (p && p.catch) p.catch(function(){}); }
+    else          { userPaused = true; v.pause(); showTap(); }
+  });
+
+  /* Don't burn battery while it is off screen. */
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function(es){ es.forEach(function(en){
+      onScreen = en.isIntersecting;
+      if (onScreen) tryPlay(); else if (!v.paused) v.pause();
+    }); }, {threshold: 0.15}).observe(v);
+  }
+
+  tryPlay();
 })();
 </script>
 
