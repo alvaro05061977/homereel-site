@@ -76,7 +76,6 @@
     .strip-item{flex:0 0 62%;scroll-snap-align:center}
   }
   @media(max-width:520px){.ba-tag .sub{display:none}}
-  @media(prefers-reduced-motion:reduce){.ba-panel.is-after{box-shadow:var(--shadow)}}
   .trust{display:flex;gap:28px;justify-content:center;margin-top:34px;flex-wrap:wrap;color:var(--ink-soft);font-size:14px}
   .trust span:before{content:"●";color:var(--tomato);margin-right:8px;font-size:9px;vertical-align:middle}
 
@@ -303,35 +302,36 @@
 
 <script>
 /* "After" panel playback.
-   Phones refuse muted autoplay for reasons the page cannot detect (iOS Low
-   Power Mode, Low Data Mode, Reduce Motion, strict autoplay settings). So we
-   try hard to play, and if the browser still says no we show a tap-to-play
-   button rather than leaving a silently dead still frame. */
+   Browsers refuse muted autoplay for reasons the page cannot detect (iOS Low
+   Power Mode, Low Data Mode, strict autoplay settings). So we try hard to
+   play, and only if the browser actually refuses do we show a tap-to-play
+   button rather than leaving a silently dead still frame.
+   Note: prefers-reduced-motion is deliberately NOT gated on here — the clip
+   is a slow camera push and it is the page's core proof point. */
 (function(){
   var v = document.getElementById('baAfter'); if (!v) return;
   var fig = v.parentNode;
-  var mq  = window.matchMedia('(prefers-reduced-motion: reduce)');
-  var onScreen = true, userPaused = false, optedIn = false;
+  var onScreen = true, userPaused = false;
 
   function showTap(){ fig.classList.add('needs-tap'); }
   function hideTap(){ fig.classList.remove('needs-tap'); }
-  function held(){ return (mq.matches && !optedIn) || userPaused; }
 
   function tryPlay(){
-    if (held())   { showTap(); return; }
-    if (!onScreen) return;
+    if (userPaused || !onScreen) return;
     var p = v.play();
-    /* A refused play() can settle AFTER a later attempt already succeeded, so
-       re-check the element's real state before showing the button. */
-    if (p && p.catch) p.catch(function(){ if (v.paused && onScreen && !held()) showTap(); });
+    /* A refused play() can settle AFTER a later attempt already succeeded,
+       so re-check the element's real state before showing the button. */
+    if (p && p.catch) p.catch(function(){
+      if (v.paused && onScreen && !userPaused) showTap();
+    });
   }
 
-  v.addEventListener('play', hideTap);
+  /* The element's own state is the single source of truth for the button. */
+  v.addEventListener('play',    hideTap);
   v.addEventListener('playing', hideTap);
   v.addEventListener('loadeddata', tryPlay);
-  v.addEventListener('canplay', tryPlay);
+  v.addEventListener('canplay',    tryPlay);
   document.addEventListener('visibilitychange', function(){ if (!document.hidden) tryPlay(); });
-  (mq.addEventListener ? mq.addEventListener('change', tryPlay) : mq.addListener(tryPlay));
 
   /* A real gesture anywhere else on the page unlocks playback where autoplay
      was refused. Gestures inside the panel are left to the toggle below. */
@@ -343,9 +343,9 @@
   }
   UNLOCK.forEach(function(t){ document.addEventListener(t, unlock, {passive:true}); });
 
-  /* Tapping the panel toggles — and is the reduced-motion opt-in. */
+  /* Tapping the panel toggles play/pause. */
   fig.addEventListener('click', function(){
-    if (v.paused) { optedIn = true; userPaused = false; var p = v.play(); if (p && p.catch) p.catch(function(){}); }
+    if (v.paused) { userPaused = false; var p = v.play(); if (p && p.catch) p.catch(function(){}); }
     else          { userPaused = true; v.pause(); showTap(); }
   });
 
