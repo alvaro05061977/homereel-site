@@ -58,6 +58,17 @@
   .flipnote{position:absolute;right:14px;bottom:12px;z-index:6;font-size:12px;color:var(--soft);
             background:#000000a0;padding:6px 11px;border-radius:8px;backdrop-filter:blur(6px)}
 
+  /* flip mode: one image fills the stage, F (or click / space) swaps which one */
+  .nowshowing{display:none;position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:8;
+              align-items:center;gap:9px;font-size:12px;letter-spacing:.13em;text-transform:uppercase;font-weight:700;
+              background:#000000b8;backdrop-filter:blur(8px);padding:8px 16px;border-radius:999px;color:#fff;
+              box-shadow:0 2px 14px #0007;transition:background .12s}
+  .nowshowing .dot{width:9px;height:9px;border-radius:50%;background:#2f7fd0;transition:background .12s}
+  .nowshowing.ai .dot{background:var(--accent)}
+  body.mode-flip .nowshowing{display:flex}
+  body.mode-flip #tagL,body.mode-flip #tagR,body.mode-flip #handle{display:none}
+  body.mode-flip .stage{cursor:pointer}
+
   .loading,.empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--soft);font-size:14px;text-align:center;padding:30px}
 
   /* ---- bottom bar ---- */
@@ -110,6 +121,7 @@
     <div class="modes">
       <button id="mSide" class="on" onclick="setMode('side')">Side by side</button>
       <button id="mWipe" onclick="setMode('wipe')">Wipe</button>
+      <button id="mFlip" onclick="setMode('flip')">Flip</button>
     </div>
     <div class="zoomctl">
       <button onclick="zoomBy(-1)">−</button>
@@ -128,12 +140,13 @@
     <div class="wipewrap" id="wipewrap">
       <div class="layer"><img id="wImgA" alt="Client's listing photo"></div>
       <div class="layer top" id="wTop"><img id="wImgB" alt="Composed keyframe"></div>
-      <span class="tag">Client photo</span>
-      <span class="tag ai" style="left:auto;right:14px">AI keyframe</span>
+      <span class="tag" id="tagL">Client photo</span>
+      <span class="tag ai" id="tagR" style="left:auto;right:14px">AI keyframe</span>
       <div class="handle" id="handle"></div>
+      <div class="nowshowing" id="nowShowing"><span class="dot"></span><span id="nowLabel">Client photo</span></div>
     </div>
 
-    <div class="flipnote">Hold <b>F</b> to flip · drag to pan</div>
+    <div class="flipnote" id="flipnote">Hold <b>F</b> to flip · drag to pan</div>
     <div class="loading" id="loading">Loading order…</div>
   </div>
 
@@ -161,7 +174,7 @@
 
 <div class="help">
   <b>←/→</b> room &nbsp; <b>A</b> approve &nbsp; <b>R</b> re-run &nbsp; <b>N</b> notes<br>
-  <b>W</b> wipe &nbsp; <b>S</b> side-by-side &nbsp; <b>F</b> hold to flip &nbsp; <b>0</b> reset view
+  <b>S</b> side-by-side &nbsp; <b>W</b> wipe &nbsp; <b>D</b> flip mode &nbsp; <b>F</b> hold to swap &nbsp; <b>space</b> latch &nbsp; <b>0</b> reset
 </div>
 
 <div class="toast" id="toast"></div>
@@ -229,6 +242,7 @@ function show(i) {
   resetView();
   renderChips();
   paintVerdict();
+  if (mode === 'flip') { showingAI = false; paintFlip(); }
 }
 
 function paintVerdict() {
@@ -275,17 +289,23 @@ function zoomBy(dir) {
 let drag = null;
 function startDrag(e) {
   const p = e.touches ? e.touches[0] : e;
-  drag = { x: p.clientX, y: p.clientY, ox: view.x, oy: view.y };
+  drag = { x: p.clientX, y: p.clientY, ox: view.x, oy: view.y, moved: false };
 }
 function moveDrag(e) {
   if (!drag) return;
   const p = e.touches ? e.touches[0] : e;
-  view.x = drag.ox + (p.clientX - drag.x);
-  view.y = drag.oy + (p.clientY - drag.y);
+  const dx = p.clientX - drag.x, dy = p.clientY - drag.y;
+  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
+  view.x = drag.ox + dx;
+  view.y = drag.oy + dy;
   applyView();
   e.preventDefault();
 }
-function endDrag() { drag = null; }
+function endDrag() {
+  // A click that didn't pan is a request to swap the frame, in flip mode.
+  if (drag && !drag.moved && mode === 'flip') toggleFlip();
+  drag = null;
+}
 $('stage').addEventListener('mousedown', (e) => { if (!e.target.closest('.handle')) startDrag(e); });
 window.addEventListener('mousemove', moveDrag);
 window.addEventListener('mouseup', endDrag);
@@ -297,34 +317,63 @@ window.addEventListener('resize', applyView);
 ['imgA', 'imgB', 'wImgA', 'wImgB'].forEach(id => $(id).addEventListener('load', applyView));
 
 /* ---------- modes ---------- */
+let wipePct = 50;        // remembered across mode switches
+let showingAI = false;   // flip mode: which layer is on top
+
 function setMode(m) {
   mode = m;
+  document.body.classList.toggle('mode-flip', m === 'flip');
   $('panes').style.display = m === 'side' ? 'flex' : 'none';
-  $('wipewrap').style.display = m === 'wipe' ? 'block' : 'none';
+  $('wipewrap').style.display = m === 'side' ? 'none' : 'block';
   $('mSide').classList.toggle('on', m === 'side');
   $('mWipe').classList.toggle('on', m === 'wipe');
+  $('mFlip').classList.toggle('on', m === 'flip');
+  $('flipnote').innerHTML = m === 'flip'
+    ? 'Click, <b>space</b>, or hold <b>F</b> to swap · drag to pan'
+    : 'Hold <b>F</b> to flip · drag to pan';
+  if (m === 'wipe') setWipe(wipePct);
+  if (m === 'flip') paintFlip();
   applyView();
 }
 
-/* wipe handle */
+/* wipe handle — position is stored as a percentage, never measured from a
+   hidden element (a display:none container reports zero width, which pinned
+   the handle to the far left on first load). */
+function setWipe(pct) {
+  wipePct = Math.max(0, Math.min(100, pct));
+  $('wipewrap').style.setProperty('--wipe', wipePct + '%');
+  $('wTop').style.clipPath = `inset(0 0 0 ${wipePct}%)`;
+  $('handle').style.left = wipePct + '%';
+}
+
 (function () {
   const wrap = $('wipewrap'), handle = $('handle');
   let dragging = false;
-  const set = (clientX) => {
+  const fromX = (clientX) => {
     const r = wrap.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100));
-    wrap.style.setProperty('--wipe', pct + '%');
-    $('wTop').style.clipPath = `inset(0 0 0 ${pct}%)`;
-    handle.style.left = pct + '%';
+    if (!r.width) return;
+    setWipe(((clientX - r.left) / r.width) * 100);
   };
   handle.addEventListener('mousedown', (e) => { dragging = true; e.stopPropagation(); e.preventDefault(); });
-  window.addEventListener('mousemove', (e) => { if (dragging) set(e.clientX); });
+  window.addEventListener('mousemove', (e) => { if (dragging) fromX(e.clientX); });
   window.addEventListener('mouseup', () => { dragging = false; });
   handle.addEventListener('touchstart', (e) => { dragging = true; e.stopPropagation(); }, { passive: true });
-  window.addEventListener('touchmove', (e) => { if (dragging) set(e.touches[0].clientX); }, { passive: true });
+  window.addEventListener('touchmove', (e) => { if (dragging) fromX(e.touches[0].clientX); }, { passive: true });
   window.addEventListener('touchend', () => { dragging = false; });
-  set(0); requestAnimationFrame(() => { const r = wrap.getBoundingClientRect(); set(r.left + r.width / 2); });
+  setWipe(50);
 })();
+
+/* flip mode: full-screen A/B in place — the strongest way to spot what changed,
+   because anything unaltered stays perfectly still between the two frames. */
+function paintFlip() {
+  $('wTop').style.clipPath = showingAI ? 'inset(0 0 0 0)' : 'inset(0 0 0 100%)';
+  $('nowShowing').classList.toggle('ai', showingAI);
+  $('nowLabel').textContent = showingAI ? 'AI keyframe' : 'Client photo';
+}
+function toggleFlip(force) {
+  showingAI = force === undefined ? !showingAI : force;
+  paintFlip();
+}
 
 /* ---------- verdicts ---------- */
 async function setVerdict(v) {
@@ -371,21 +420,25 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'n') toggleNotes();
   else if (k === 'w') setMode('wipe');
   else if (k === 's') setMode('side');
+  else if (k === 'd') setMode('flip');
   else if (k === '0') resetView();
   else if (k === '=' || k === '+') zoomBy(1);
   else if (k === '-') zoomBy(-1);
+  else if (k === ' ' && mode === 'flip') { e.preventDefault(); toggleFlip(); }
   else if (k === 'f' && !flipping) {
-    // Blink comparison: swap the AI frame over the client photo in place.
+    // Blink comparison: swap the AI frame in place, held.
     flipping = true;
-    if (mode === 'side') { $('imgA').src = rooms[idx].keyframeUrl || rooms[idx].clipUrl; }
-    else { $('wTop').style.clipPath = 'inset(0 0 0 0%)'; }
+    if (mode === 'side') $('imgA').src = rooms[idx].keyframeUrl || rooms[idx].clipUrl;
+    else if (mode === 'flip') toggleFlip(!showingAI);
+    else $('wTop').style.clipPath = 'inset(0 0 0 0)';
   }
 });
 window.addEventListener('keyup', (e) => {
   if (e.key.toLowerCase() === 'f' && flipping) {
     flipping = false;
-    if (mode === 'side') { $('imgA').src = rooms[idx].sourceUrl; }
-    else { const l = $('handle').style.left || '50%'; $('wTop').style.clipPath = `inset(0 0 0 ${l})`; }
+    if (mode === 'side') $('imgA').src = rooms[idx].sourceUrl;
+    else if (mode === 'flip') toggleFlip(!showingAI);
+    else setWipe(wipePct);
   }
 });
 
