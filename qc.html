@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HomeReel — QC Viewer</title>
+<style>
+  :root{
+    --bg:#14161a; --panel:#1c1f25; --line:#2c313a; --ink:#eef0f3; --soft:#9aa3b2;
+    --accent:#e8442a; --ok:#3fa46a; --warn:#e6b25e;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       overflow:hidden;-webkit-font-smoothing:antialiased}
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+
+  .app{display:grid;grid-template-rows:auto 1fr auto;height:100%}
+
+  /* ---- top bar ---- */
+  header{display:flex;align-items:center;gap:18px;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .brand{font-weight:700;letter-spacing:-.01em;font-size:15px;white-space:nowrap}
+  .brand span{color:var(--accent)}
+  .addr{font-size:13px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .spacer{flex:1}
+  .modes{display:flex;gap:2px;background:#12141896;border:1px solid var(--line);border-radius:9px;padding:3px}
+  .modes button{padding:6px 13px;border-radius:6px;font-size:13px;color:var(--soft)}
+  .modes button.on{background:var(--accent);color:#fff;font-weight:600}
+  .zoomctl{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--soft)}
+  .zoomctl button{width:26px;height:26px;border:1px solid var(--line);border-radius:6px;line-height:1}
+  .zoomctl button:hover{border-color:var(--accent);color:var(--ink)}
+  .pct{min-width:46px;text-align:center;font-variant-numeric:tabular-nums}
+
+  /* ---- stage ---- */
+  .stage{position:relative;overflow:hidden;background:#0d0f12}
+  .panes{position:absolute;inset:0;display:flex;gap:2px}
+  .pane{position:relative;flex:1;overflow:hidden;background:#0d0f12}
+  .pane img{position:absolute;left:50%;top:50%;max-width:none;transform-origin:center center;
+            user-select:none;-webkit-user-drag:none}
+  .tag{position:absolute;left:14px;top:12px;z-index:5;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+       font-weight:700;background:#000000b0;backdrop-filter:blur(6px);padding:6px 11px;border-radius:999px;color:#fff}
+  .tag.ai{background:#e8442ad0}
+
+  /* wipe mode uses a single pane with two stacked images */
+  .wipewrap{position:absolute;inset:0;display:none}
+  .wipewrap .layer{position:absolute;inset:0;overflow:hidden}
+  .wipewrap .layer img{position:absolute;left:50%;top:50%;max-width:none;transform-origin:center center;
+                       user-select:none;-webkit-user-drag:none}
+  .wipewrap .top{clip-path:inset(0 0 0 var(--wipe,50%))}
+  .handle{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 0 1px #0006;
+          left:var(--wipe,50%);cursor:ew-resize;z-index:10}
+  .handle::after{content:"";position:absolute;top:50%;left:50%;width:38px;height:38px;transform:translate(-50%,-50%);
+                 border-radius:50%;background:#fff;box-shadow:0 2px 10px #0008}
+  .handle::before{content:"‹ ›";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;
+                  color:#14161a;font-size:15px;font-weight:700;letter-spacing:1px}
+
+  .flipnote{position:absolute;right:14px;bottom:12px;z-index:6;font-size:12px;color:var(--soft);
+            background:#000000a0;padding:6px 11px;border-radius:8px;backdrop-filter:blur(6px)}
+
+  .loading,.empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--soft);font-size:14px;text-align:center;padding:30px}
+
+  /* ---- bottom bar ---- */
+  footer{border-top:1px solid var(--line);background:var(--panel);padding:10px 18px;display:flex;align-items:center;gap:16px}
+  .rooms{display:flex;gap:6px;overflow-x:auto;flex:1;padding-bottom:2px}
+  .chip{white-space:nowrap;font-size:12.5px;padding:7px 13px;border-radius:999px;border:1px solid var(--line);color:var(--soft)}
+  .chip.cur{border-color:var(--accent);color:var(--ink);background:#e8442a1f;font-weight:600}
+  .chip .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;background:var(--soft);vertical-align:middle}
+  .chip.approved .dot{background:var(--ok)}
+  .chip.rerun .dot{background:var(--accent)}
+
+  .verdict{display:flex;align-items:center;gap:9px}
+  .verdict button{padding:10px 18px;border-radius:9px;font-size:14px;font-weight:600;border:1px solid var(--line)}
+  .btn-ok{background:var(--ok);border-color:var(--ok)!important;color:#fff}
+  .btn-ok.dim{background:none;color:var(--ok)}
+  .btn-no{background:var(--accent);border-color:var(--accent)!important;color:#fff}
+  .btn-no.dim{background:none;color:var(--accent)}
+  .nav button{padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;color:var(--soft)}
+  .nav button:hover{border-color:var(--accent);color:var(--ink)}
+
+  /* ---- notes drawer ---- */
+  .notes{position:fixed;right:18px;bottom:76px;width:340px;background:var(--panel);border:1px solid var(--line);
+         border-radius:12px;padding:14px;box-shadow:0 20px 50px #0009;display:none;z-index:30}
+  .notes.show{display:block}
+  .notes h4{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--soft);margin-bottom:9px}
+  .notes textarea{width:100%;height:96px;resize:vertical;background:#0f1115;border:1px solid var(--line);border-radius:8px;
+                  color:var(--ink);padding:10px;font:inherit;font-size:13.5px}
+  .notes textarea:focus{outline:none;border-color:var(--accent)}
+  .notes .row{display:flex;gap:8px;margin-top:10px}
+  .notes .row button{flex:1;padding:9px;border-radius:8px;border:1px solid var(--line);font-size:13px}
+  .notes .row .save{background:var(--accent);border-color:var(--accent)!important;color:#fff;font-weight:600}
+
+  .toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:#0f1115;border:1px solid var(--line);
+         color:var(--ink);padding:10px 18px;border-radius:999px;font-size:13px;z-index:40;opacity:0;transition:opacity .18s;
+         pointer-events:none;box-shadow:0 10px 30px #0008}
+  .toast.show{opacity:1}
+
+  .help{position:fixed;left:18px;bottom:76px;font-size:11.5px;color:#6c7482;line-height:1.7;z-index:20}
+  .help b{color:var(--soft);font-weight:600}
+  @media(max-width:900px){.help{display:none}.notes{width:auto;left:18px;right:18px}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="brand">Home<span>reel</span> · QC</div>
+    <div class="addr" id="addr">Loading…</div>
+    <div class="spacer"></div>
+    <div class="modes">
+      <button id="mSide" class="on" onclick="setMode('side')">Side by side</button>
+      <button id="mWipe" onclick="setMode('wipe')">Wipe</button>
+    </div>
+    <div class="zoomctl">
+      <button onclick="zoomBy(-1)">−</button>
+      <span class="pct" id="pct">Fit</span>
+      <button onclick="zoomBy(1)">+</button>
+      <button onclick="resetView()" title="Reset">⟲</button>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <div class="panes" id="panes">
+      <div class="pane" id="paneA"><span class="tag">Client photo</span><img id="imgA" alt="Client's listing photo"></div>
+      <div class="pane" id="paneB"><span class="tag ai">AI keyframe</span><img id="imgB" alt="Composed keyframe"></div>
+    </div>
+
+    <div class="wipewrap" id="wipewrap">
+      <div class="layer"><img id="wImgA" alt="Client's listing photo"></div>
+      <div class="layer top" id="wTop"><img id="wImgB" alt="Composed keyframe"></div>
+      <span class="tag">Client photo</span>
+      <span class="tag ai" style="left:auto;right:14px">AI keyframe</span>
+      <div class="handle" id="handle"></div>
+    </div>
+
+    <div class="flipnote">Hold <b>F</b> to flip · drag to pan</div>
+    <div class="loading" id="loading">Loading order…</div>
+  </div>
+
+  <footer>
+    <div class="nav"><button onclick="go(-1)">←</button></div>
+    <div class="rooms" id="rooms"></div>
+    <div class="nav"><button onclick="go(1)">→</button></div>
+    <div class="verdict">
+      <button id="bOk" class="btn-ok dim" onclick="setVerdict('Approved')">Approve</button>
+      <button id="bNo" class="btn-no dim" onclick="setVerdict('Re-run')">Re-run</button>
+      <button style="border:1px solid var(--line);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--soft)"
+              onclick="toggleNotes()">Notes</button>
+    </div>
+  </footer>
+</div>
+
+<div class="notes" id="notes">
+  <h4>QC notes — <span id="notesRoom"></span></h4>
+  <textarea id="notesText" placeholder="What was wrong? This note becomes the re-run prompt."></textarea>
+  <div class="row">
+    <button onclick="toggleNotes()">Close</button>
+    <button class="save" onclick="saveNotes()">Save note</button>
+  </div>
+</div>
+
+<div class="help">
+  <b>←/→</b> room &nbsp; <b>A</b> approve &nbsp; <b>R</b> re-run &nbsp; <b>N</b> notes<br>
+  <b>W</b> wipe &nbsp; <b>S</b> side-by-side &nbsp; <b>F</b> hold to flip &nbsp; <b>0</b> reset view
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const qs = new URLSearchParams(location.search);
+const ORDER = qs.get('order') || '';
+const KEY = qs.get('k') || '';
+const GATE = qs.get('gate') === 'clip' ? 'clip' : 'keyframe';
+
+let rooms = [], idx = 0, mode = 'side';
+let view = { scale: 0, x: 0, y: 0 };   // scale 0 = "fit"
+let flipping = false;
+
+const $ = (id) => document.getElementById(id);
+const api = (path) => `/api/qc${path}${KEY ? (path.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(KEY) : ''}`;
+
+function toast(msg, ms = 1900) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+async function load() {
+  if (!/^rec[a-zA-Z0-9]{14}$/.test(ORDER)) {
+    $('loading').innerHTML = 'No order specified.<br><br>Open this page from the QC email, or add <b>?order=rec…</b> to the address.';
+    return;
+  }
+  try {
+    const r = await fetch(api(`?order=${encodeURIComponent(ORDER)}`));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Load failed');
+    $('addr').textContent = `${d.order.address} · ${d.order.agent}`;
+    document.title = `QC — ${d.order.address}`;
+    rooms = d.rooms.filter(x => GATE === 'clip' ? x.clipUrl : x.keyframeUrl);
+    if (!rooms.length) { $('loading').textContent = 'Nothing to review for this order yet.'; return; }
+    $('loading').style.display = 'none';
+    renderChips(); show(0);
+  } catch (e) {
+    $('loading').textContent = 'Could not load this order: ' + e.message;
+  }
+}
+
+function renderChips() {
+  $('rooms').innerHTML = rooms.map((r, i) => {
+    const v = GATE === 'clip' ? r.clipVerdict : r.keyframeVerdict;
+    const cls = v === 'Approved' ? 'approved' : (v === 'Re-run' ? 'rerun' : '');
+    return `<button class="chip ${cls} ${i === idx ? 'cur' : ''}" onclick="show(${i})"><span class="dot"></span>${r.room}</button>`;
+  }).join('');
+}
+
+function show(i) {
+  if (i < 0 || i >= rooms.length) return;
+  idx = i;
+  const r = rooms[i];
+  const a = r.sourceUrl, b = GATE === 'clip' ? r.clipUrl : r.keyframeUrl;
+  ['imgA', 'wImgA'].forEach(id => $(id).src = a);
+  ['imgB', 'wImgB'].forEach(id => $(id).src = b);
+  $('notesRoom').textContent = r.room;
+  $('notesText').value = r.notes || '';
+  resetView();
+  renderChips();
+  paintVerdict();
+}
+
+function paintVerdict() {
+  const r = rooms[idx];
+  const v = GATE === 'clip' ? r.clipVerdict : r.keyframeVerdict;
+  $('bOk').classList.toggle('dim', v !== 'Approved');
+  $('bNo').classList.toggle('dim', v !== 'Re-run');
+}
+
+function go(d) { show(Math.min(rooms.length - 1, Math.max(0, idx + d))); }
+
+/* ---------- view: fit / zoom / pan, applied identically to both images ---------- */
+// Images differ in aspect (source photos are 3:2, keyframes 16:9) because the
+// compose step reframes to widescreen. Both are letterboxed into the same box so
+// the reframing itself stays visible rather than being hidden by a crop.
+function applyView() {
+  const boxes = mode === 'wipe'
+    ? [[$('wImgA'), $('wipewrap')], [$('wImgB'), $('wipewrap')]]
+    : [[$('imgA'), $('paneA')], [$('imgB'), $('paneB')]];
+
+  boxes.forEach(([img, box]) => {
+    if (!img.naturalWidth) return;
+    const bw = box.clientWidth, bh = box.clientHeight;
+    const fit = Math.min(bw / img.naturalWidth, bh / img.naturalHeight);
+    const s = view.scale > 0 ? view.scale : fit;
+    img.style.width = img.naturalWidth + 'px';
+    img.style.height = img.naturalHeight + 'px';
+    img.style.transform =
+      `translate(-50%,-50%) translate(${view.x}px, ${view.y}px) scale(${s})`;
+  });
+
+  const ref = mode === 'wipe' ? $('wImgA') : $('imgA');
+  const box = mode === 'wipe' ? $('wipewrap') : $('paneA');
+  if (ref.naturalWidth) {
+    const fit = Math.min(box.clientWidth / ref.naturalWidth, box.clientHeight / ref.naturalHeight);
+    $('pct').textContent = view.scale > 0 ? Math.round(view.scale * 100) + '%' : 'Fit';
+    if (view.scale === 0) $('pct').title = Math.round(fit * 100) + '%';
+  }
+}
+function resetView() { view = { scale: 0, x: 0, y: 0 }; applyView(); }
+function zoomBy(dir) {
+  const ref = mode === 'wipe' ? $('wImgA') : $('imgA');
+  const box = mode === 'wipe' ? $('wipewrap') : $('paneA');
+  const fit = ref.naturalWidth ? Math.min(box.clientWidth / ref.naturalWidth, box.clientHeight / ref.naturalHeight) : 1;
+  let s = view.scale > 0 ? view.scale : fit;
+  s = dir > 0 ? s * 1.35 : s / 1.35;
+  s = Math.max(fit * 0.9, Math.min(6, s));
+  view.scale = Math.abs(s - fit) < 0.005 ? 0 : s;
+  if (view.scale === 0) { view.x = 0; view.y = 0; }
+  applyView();
+}
+
+let drag = null;
+function startDrag(e) {
+  const p = e.touches ? e.touches[0] : e;
+  drag = { x: p.clientX, y: p.clientY, ox: view.x, oy: view.y };
+}
+function moveDrag(e) {
+  if (!drag) return;
+  const p = e.touches ? e.touches[0] : e;
+  view.x = drag.ox + (p.clientX - drag.x);
+  view.y = drag.oy + (p.clientY - drag.y);
+  applyView();
+  e.preventDefault();
+}
+function endDrag() { drag = null; }
+$('stage').addEventListener('mousedown', (e) => { if (!e.target.closest('.handle')) startDrag(e); });
+window.addEventListener('mousemove', moveDrag);
+window.addEventListener('mouseup', endDrag);
+$('stage').addEventListener('touchstart', (e) => { if (!e.target.closest('.handle')) startDrag(e); }, { passive: true });
+window.addEventListener('touchmove', moveDrag, { passive: false });
+window.addEventListener('touchend', endDrag);
+$('stage').addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(e.deltaY < 0 ? 1 : -1); }, { passive: false });
+window.addEventListener('resize', applyView);
+['imgA', 'imgB', 'wImgA', 'wImgB'].forEach(id => $(id).addEventListener('load', applyView));
+
+/* ---------- modes ---------- */
+function setMode(m) {
+  mode = m;
+  $('panes').style.display = m === 'side' ? 'flex' : 'none';
+  $('wipewrap').style.display = m === 'wipe' ? 'block' : 'none';
+  $('mSide').classList.toggle('on', m === 'side');
+  $('mWipe').classList.toggle('on', m === 'wipe');
+  applyView();
+}
+
+/* wipe handle */
+(function () {
+  const wrap = $('wipewrap'), handle = $('handle');
+  let dragging = false;
+  const set = (clientX) => {
+    const r = wrap.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100));
+    wrap.style.setProperty('--wipe', pct + '%');
+    $('wTop').style.clipPath = `inset(0 0 0 ${pct}%)`;
+    handle.style.left = pct + '%';
+  };
+  handle.addEventListener('mousedown', (e) => { dragging = true; e.stopPropagation(); e.preventDefault(); });
+  window.addEventListener('mousemove', (e) => { if (dragging) set(e.clientX); });
+  window.addEventListener('mouseup', () => { dragging = false; });
+  handle.addEventListener('touchstart', (e) => { dragging = true; e.stopPropagation(); }, { passive: true });
+  window.addEventListener('touchmove', (e) => { if (dragging) set(e.touches[0].clientX); }, { passive: true });
+  window.addEventListener('touchend', () => { dragging = false; });
+  set(0); requestAnimationFrame(() => { const r = wrap.getBoundingClientRect(); set(r.left + r.width / 2); });
+})();
+
+/* ---------- verdicts ---------- */
+async function setVerdict(v) {
+  const r = rooms[idx];
+  try {
+    const res = await fetch(api(''), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recordId: r.id, gate: GATE, verdict: v, k: KEY || undefined }),
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Save failed');
+    if (GATE === 'clip') r.clipVerdict = v; else r.keyframeVerdict = v;
+    renderChips(); paintVerdict();
+    toast(`${r.room} → ${v}`);
+    if (v === 'Re-run' && !r.notes) { openNotes(); toast('Add a note — it becomes the re-run prompt', 2600); }
+    else if (idx < rooms.length - 1) setTimeout(() => go(1), 220);
+    else toast('That was the last room. Every verdict is recorded.', 3000);
+  } catch (e) { toast('Could not save: ' + e.message, 3200); }
+}
+
+function toggleNotes() { $('notes').classList.toggle('show'); if ($('notes').classList.contains('show')) $('notesText').focus(); }
+function openNotes() { $('notes').classList.add('show'); $('notesText').focus(); }
+async function saveNotes() {
+  const r = rooms[idx], text = $('notesText').value;
+  try {
+    const res = await fetch(api(''), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recordId: r.id, gate: GATE, notes: text, k: KEY || undefined }),
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Save failed');
+    r.notes = text; toggleNotes(); toast('Note saved');
+  } catch (e) { toast('Could not save note: ' + e.message, 3200); }
+}
+
+/* ---------- keyboard ---------- */
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  const k = e.key.toLowerCase();
+  if (k === 'arrowright') go(1);
+  else if (k === 'arrowleft') go(-1);
+  else if (k === 'a') setVerdict('Approved');
+  else if (k === 'r') setVerdict('Re-run');
+  else if (k === 'n') toggleNotes();
+  else if (k === 'w') setMode('wipe');
+  else if (k === 's') setMode('side');
+  else if (k === '0') resetView();
+  else if (k === '=' || k === '+') zoomBy(1);
+  else if (k === '-') zoomBy(-1);
+  else if (k === 'f' && !flipping) {
+    // Blink comparison: swap the AI frame over the client photo in place.
+    flipping = true;
+    if (mode === 'side') { $('imgA').src = rooms[idx].keyframeUrl || rooms[idx].clipUrl; }
+    else { $('wTop').style.clipPath = 'inset(0 0 0 0%)'; }
+  }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.key.toLowerCase() === 'f' && flipping) {
+    flipping = false;
+    if (mode === 'side') { $('imgA').src = rooms[idx].sourceUrl; }
+    else { const l = $('handle').style.left || '50%'; $('wTop').style.clipPath = `inset(0 0 0 ${l})`; }
+  }
+});
+
+load();
+</script>
+</body>
+</html>
