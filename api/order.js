@@ -115,6 +115,15 @@ export default async function handler(req, res) {
       res.status(400).json({ error: "Please add your headshot photo — please refresh the page and try again." }); return;
     }
 
+    // Brokerage logo — OPTIONAL, sits above the address on the end card. Blank is a
+    // valid answer (endcard.js falls back to the brokerage name in type), so an
+    // empty string passes; anything present must still be a real Cloudinary URL so
+    // a tampered payload can't point the card at an arbitrary host.
+    const logoUrl = str(o.logoUrl, 500);
+    if (logoUrl && !logoUrl.startsWith(CLOUDINARY_PREFIX)) {
+      res.status(400).json({ error: "Invalid logo upload — please refresh the page and try again." }); return;
+    }
+
     // Server-computed line items + total (canonical).
     const lineItems = [[`Package — ${pkg.name}`, pkg.price]];
     for (const id of Object.keys(ADDONS)) {
@@ -167,10 +176,11 @@ export default async function handler(req, res) {
       "Payment Status": "Unpaid",                              // flipped to Paid ONLY by the Stripe webhook
       "Job Status": "New",
       "Order Date": new Date().toISOString().slice(0, 10),
-      "Notes": `Server-verified total $${total}. ${photoUrls.length} listing photo(s) + headshot attached.`,
+      "Notes": `Server-verified total $${total}. ${photoUrls.length} listing photo(s) + headshot${logoUrl ? " + logo" : " (no logo supplied)"} attached.`,
     };
     if (photoUrls.length) fields["Listing Photos"] = photoUrls.map((u) => ({ url: u }));
     fields["Realtor Headshot"] = [{ url: headshotUrl }];
+    if (logoUrl) fields["Logo"] = [{ url: logoUrl }];
 
     const atRes = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(AIRTABLE_TABLE)}`, {
       method: "POST",

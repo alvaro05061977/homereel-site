@@ -192,17 +192,28 @@
         <div class="navbtns"><button class="back" onclick="goRel(-1)">← Back</button><button class="next" onclick="goRel(1)">Continue →</button></div>
       </div>
 
-      <!-- STEP: HEADSHOT -->
+      <!-- STEP: HEADSHOT & LOGO -->
       <div class="panel step hide" data-key="headshot">
         <div class="eyebrow"></div>
-        <h2>Your headshot</h2>
-        <p class="sub">Upload a professional photo of yourself — it appears on your film's end card alongside your branding.</p>
-        <div class="disclosure" style="margin-bottom:16px"><b>Photo guidelines.</b> Square crop (1:1) preferred · at least 300×300px, under 5MB · well-lit face, professional dress · JPG or PNG.</div>
+        <h2>Your headshot &amp; logo</h2>
+        <p class="sub">These two images appear on your film's end card, alongside your name and contact details.</p>
+
+        <h3 style="font-family:'Space Grotesk';font-weight:600;font-size:15px;margin:4px 0 8px">Headshot <span style="color:var(--accent)">*</span></h3>
+        <div class="disclosure" style="margin-bottom:14px"><b>Photo guidelines.</b> Square crop (1:1) preferred · at least 300×300px, under 5MB · well-lit face, professional dress · JPG or PNG.</div>
         <label class="drop" id="headshotDrop">
           <span id="headshotLabel">📸 Click to add your headshot<br>or drag and drop · JPG/PNG</span>
           <input type="file" accept="image/jpeg,image/png" hidden onchange="headshotFile(this)">
         </label>
         <div id="headshotPreview"></div>
+
+        <h3 style="font-family:'Space Grotesk';font-weight:600;font-size:15px;margin:26px 0 8px">Brokerage logo <span style="color:var(--ink-soft);font-weight:400">· optional</span></h3>
+        <div class="disclosure" style="margin-bottom:14px"><b>Logo guidelines.</b> PNG with a transparent background works best · at least 600px wide, under 5MB · we place it on the end card above your listing address. No logo? We'll set your brokerage name in type instead.</div>
+        <label class="drop" id="logoDrop">
+          <span id="logoLabel">🏷️ Click to add your logo<br>or drag and drop · PNG/JPG/SVG</span>
+          <input type="file" accept="image/jpeg,image/png,image/svg+xml" hidden onchange="logoFile(this)">
+        </label>
+        <div id="logoPreview"></div>
+
         <div class="navbtns"><button class="back" onclick="goRel(-1)">← Back</button><button class="next" onclick="headshotNext()">Continue →</button></div>
       </div>
 
@@ -298,12 +309,12 @@ const DEFAULT_SET={
 // --- step model (array-driven so the optional Music step inserts/hides cleanly) ---
 // Film comes FIRST and Photos comes AFTER Extras so the slot count = package rooms + extra rooms.
 const ALL_STEPS=['package','family','music','extras','photos','headshot','branding','review'];
-const LABELS={photos:'Photos',package:'Film',family:'Family',music:'Music',extras:'Extras',headshot:'Headshot',branding:'Branding',review:'Review'};
+const LABELS={photos:'Photos',package:'Film',family:'Family',music:'Music',extras:'Extras',headshot:'Headshot & logo',branding:'Branding',review:'Review'};
 const SUFFIX={extras:' · optional',music:' · optional'};
 let SOUNDTRACKS=[];                       // filled from /api/soundtracks; empty => Music step hidden
 function activeSteps(){return ALL_STEPS.filter(k=>k!=='music'||SOUNDTRACKS.length>0);}
 
-const S={pkg:'essential',fam:'carters',addons:new Set(),extraRooms:0,fmt:new Set(['16:9','9:16']),stepKey:'package',slots:[],soundtrack:'auto',headshot:null};
+const S={pkg:'essential',fam:'carters',addons:new Set(),extraRooms:0,fmt:new Set(['16:9','9:16']),stepKey:'package',slots:[],soundtrack:'auto',headshot:null,logo:null};
 
 // --- draft persistence -----------------------------------------------------
 // WHY: checkout redirects to Stripe; hitting Back must NOT wipe the order.
@@ -330,7 +341,8 @@ async function restoreState(){
   BRAND_IDS.forEach(id=>{const el=document.getElementById(id);if(el&&d.brand&&d.brand[id])el.value=d.brand[id];});
   for(let i=0;i<S.slots.length;i++){const rec=await idbGet('slot'+i);if(rec&&rec.blob)S.slots[i].file=new File([rec.blob],rec.name||'photo.jpg',{type:rec.type||'image/jpeg'});}
   const hs=await idbGet('headshot');if(hs&&hs.blob)S.headshot=new File([hs.blob],hs.name||'headshot.jpg',{type:hs.type||'image/jpeg'});
-  renderPackages();renderFamilies();renderAddons();renderFormats();rooms(0);syncSlots();renderSummary();renderHeadshot();
+  const lg=await idbGet('logo');if(lg&&lg.blob)S.logo=new File([lg.blob],lg.name||'logo.png',{type:lg.type||'image/png'});
+  renderPackages();renderFamilies();renderAddons();renderFormats();rooms(0);syncSlots();renderSummary();renderHeadshot();renderLogo();
   go(d.stepKey||'package');
 }
 
@@ -355,6 +367,34 @@ async function uploadHeadshot(){
   fd.append('upload_preset',UPLOAD_PRESET);
   const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,{method:'POST',body:fd});
   if(!res.ok)throw new Error('headshot upload failed');
+  const d=await res.json();
+  return d.secure_url;
+}
+
+// --- brokerage logo (single file, OPTIONAL — sits above the address on the end card) ---
+// Deliberately not required: plenty of agents have no usable logo file, and a
+// missing logo must never block a paid checkout. endcard.js falls back to
+// setting the brokerage name in type when Logo is empty.
+function logoFile(input){if(input.files&&input.files[0]){S.logo=input.files[0];idbPut('logo',S.logo);renderLogo();}}
+function renderLogo(){
+  const label=document.getElementById('logoLabel');
+  const prev=document.getElementById('logoPreview');
+  if(!label||!prev)return;
+  if(S.logo){
+    label.innerHTML=`✓ Logo added — click to replace`;
+    prev.innerHTML=`<div class="thumbs" style="grid-template-columns:160px"><img class="thumb" style="object-fit:contain;background:#fff" src="${URL.createObjectURL(S.logo)}" alt=""></div><div class="ok" style="margin-top:8px">${S.logo.name}</div>`;
+  }else{
+    label.innerHTML=`🏷️ Click to add your logo<br>or drag and drop · PNG/JPG/SVG`;
+    prev.innerHTML='';
+  }
+}
+async function uploadLogo(){
+  if(!S.logo)return '';
+  const fd=new FormData();
+  fd.append('file',S.logo);
+  fd.append('upload_preset',UPLOAD_PRESET);
+  const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,{method:'POST',body:fd});
+  if(!res.ok)throw new Error('logo upload failed');
   const d=await res.json();
   return d.secure_url;
 }
@@ -472,7 +512,8 @@ function renderReview(){const p=PACKAGES.find(x=>x.id===S.pkg),f=FAMILIES.find(x
    musicRow+
    `<div class="review-line"><span>Formats</span><span>${[...S.fmt].join(' + ')}</span></div>`+
    `<div class="review-line"><span>Rooms / photos</span><span>${S.slots.filter(s=>s.file).length} — ${S.slots.map(s=>roomName(s.room)).join(', ')}</span></div>`+
-   `<div class="review-line"><span>Headshot</span><span>${S.headshot?'✓ added':'—'}</span></div>`+rows+
+   `<div class="review-line"><span>Headshot</span><span>${S.headshot?'✓ added':'—'}</span></div>`+
+   `<div class="review-line"><span>Logo</span><span>${S.logo?'✓ added':'— brokerage name in type'}</span></div>`+rows+
    `<div class="review-line"><span>Total</span><span>$${total().toLocaleString()}</span></div>`;}
 
 function pick(k,v){if(k==='pkg'){S.pkg=v;S.slots=[];for(let i=0;i<12;i++)idbDel('slot'+i);rooms(0);syncSlots();}if(k==='fam')S.fam=v;renderPackages();renderFamilies();renderSummary();saveState();}
@@ -530,13 +571,15 @@ async function submitOrder(){
   if(!S.headshot){alert('Please add your headshot photo (Headshot step).');go('headshot');return;}
   const btn=document.getElementById('payBtn');btn.disabled=true;
   const st=chosenSoundtrack();
-  // 1) upload the listing photos + headshot straight to Cloudinary, keeping each photo's room label
-  let photos=[],headshotUrl='';
+  // 1) upload the listing photos + headshot + optional logo straight to Cloudinary,
+  //    keeping each photo's room label
+  let photos=[],headshotUrl='',logoUrl='';
   try{
     btn.textContent=`Uploading photos… 0/${S.slots.length}`;
     photos=await uploadPhotos((n,t)=>{btn.textContent=`Uploading photos… ${n}/${t}`;});
     btn.textContent='Uploading headshot…';
     headshotUrl=await uploadHeadshot();
+    if(S.logo){btn.textContent='Uploading logo…';logoUrl=await uploadLogo();}
   }catch(e){
     alert('Your photos could not be uploaded. Please check your connection and try again.');
     btn.disabled=false;btn.textContent='Continue to secure payment →';return;
@@ -556,6 +599,7 @@ async function submitOrder(){
     mls:true,
     photos:photos,                       // [{room, url}] — one per labeled slot, the room mapping
     headshotUrl:headshotUrl,             // Cloudinary URL — appears on the end card
+    logoUrl:logoUrl,                     // Cloudinary URL or '' — optional brokerage logo on the end card
     total:total()                        // display total — server recomputes + cross-checks only
   };
   try{
