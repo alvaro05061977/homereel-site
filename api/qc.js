@@ -17,6 +17,8 @@
 //   QC_KEY - if set, every request must carry ?k=<QC_KEY>. Leave unset only for
 //            internal testing; the listing photos are client property.
 
+import { syncApprovedKeyframe } from "../lib/canvas-core.js";
+
 const AIRTABLE_BASE = "apprH6McRLyr1EpY5";
 const ORDERS = "Orders";
 const ORDER_PHOTOS = "Order Photos";
@@ -165,7 +167,26 @@ export default async function handler(req, res) {
         console.error("qc PATCH failed:", r.status, (await r.text()).slice(0, 300));
         res.status(502).json({ error: "Could not save that verdict. Try again." }); return;
       }
-      res.status(200).json({ ok: true });
+
+      // The verdict is saved; that part is now safe regardless of what follows.
+      //
+      // An APPROVED keyframe goes straight onto the client's Magnific canvas,
+      // wired as that room's animation first frame. This is the instant path:
+      // the approval already came through us, so nothing has to poll or notify.
+      // Failure here NEVER fails the request - losing a reviewer's verdict
+      // because a canvas was unreachable would be much worse than a canvas
+      // that is briefly out of date, and /api/canvas-sync can replay it.
+      let canvas = null;
+      if (gate === "keyframe" && b.verdict === "Approved") {
+        try {
+          canvas = await syncApprovedKeyframe(recordId, token);
+        } catch (e) {
+          console.error("qc: canvas sync failed (verdict was still saved):", String(e));
+          canvas = { synced: false, error: String(e.message || e) };
+        }
+      }
+
+      res.status(200).json({ ok: true, ...(canvas ? { canvas } : {}) });
       return;
     }
 
