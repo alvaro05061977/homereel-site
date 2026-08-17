@@ -36,7 +36,35 @@ const F = {
   trimIn: "Trim In (s)",
   trimOut: "Trim Out (s)",
   notes: "QC Notes",
+  // Attachment copies of the same media. These are what we actually serve to the
+  // viewer — see mediaUrl() below for why.
+  keyframeAttachment: "Keyframe",
+  clipAttachment: "Clip",
 };
+
+// Which URL do we hand the browser for a room's keyframe or clip?
+//
+// NOT the "Keyframe URL" / "Clip URL" text fields. Those hold Magnific (pikaso)
+// links, which are SIGNED AND EXPIRE about 24 hours after the render. They work
+// beautifully on the day you render and are dead links the next morning. That is
+// not a theory: on 2026-08-17 every one of HR-0005's six keyframes had expired at
+// 2026-08-14 00:00 UTC, and the QC dashboard showed the client photo beside a
+// broken-image icon. Gate 1 could not be worked at all.
+//
+// Airtable's attachment copies are permanent, and Airtable re-signs their URLs on
+// every API read — so because this handler reads the row fresh on each request,
+// the URL it returns is always newly signed and always loads. That is the whole
+// fix: prefer the attachment, fall back to the raw field only for rows whose
+// attachment never got populated (older orders), so nothing regresses.
+//
+// `att.url` is the original full-resolution file; `thumbnails.full` is a resized
+// copy and is missing entirely on video attachments. Reviewers are judging fine
+// detail, so take the original and keep the thumbnail only as a last resort.
+function mediaUrl(cell) {
+  if (!Array.isArray(cell) || !cell.length) return "";
+  const att = cell[0];
+  return att.url || (att.thumbnails && att.thumbnails.full && att.thumbnails.full.url) || "";
+}
 
 const KEYFRAME_VERDICTS = ["Pending", "Approved", "Re-run"];
 const CLIP_VERDICTS = ["Pending", "Approved", "Trim", "Re-run"];
@@ -75,10 +103,12 @@ async function fetchRooms(token, orderId) {
       label: rec.fields[F.photo] || "",
       room: rec.fields[F.roomType] || "Room",
       slot: rec.fields[F.slot] ?? 999,
+      // Cloudinary links are unsigned and permanent, so the source photo is left
+      // as it was — it is the keyframe and clip that were rotting.
       sourceUrl: rec.fields[F.sourceUrl] || "",
-      keyframeUrl: rec.fields[F.keyframeUrl] || "",
+      keyframeUrl: mediaUrl(rec.fields[F.keyframeAttachment]) || rec.fields[F.keyframeUrl] || "",
       keyframeVerdict: rec.fields[F.keyframeVerdict] || "Pending",
-      clipUrl: rec.fields[F.clipUrl] || "",
+      clipUrl: mediaUrl(rec.fields[F.clipAttachment]) || rec.fields[F.clipUrl] || "",
       clipVerdict: rec.fields[F.clipVerdict] || "Pending",
       trimIn: rec.fields[F.trimIn] ?? null,
       trimOut: rec.fields[F.trimOut] ?? null,
