@@ -79,6 +79,10 @@
   .chip .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;background:var(--soft);vertical-align:middle}
   .chip.approved .dot{background:var(--ok)}
   .chip.rerun .dot{background:var(--accent)}
+  /* Trim is a DECISION, not an undecided state. Without this it fell through to
+     the grey Pending dot, so a reviewer could not tell a trimmed clip from one
+     they had not watched yet. */
+  .chip.trimmed .dot{background:var(--warn)}
 
   .verdict{display:flex;align-items:center;gap:9px}
   .verdict button{padding:10px 18px;border-radius:9px;font-size:14px;font-weight:600;border:1px solid var(--line)}
@@ -165,7 +169,11 @@
 
 <div class="notes" id="notes">
   <h4>QC notes — <span id="notesRoom"></span></h4>
-  <textarea id="notesText" placeholder="What was wrong? This note becomes the re-run prompt."></textarea>
+  <!-- NOT "this becomes the re-run prompt". Nothing consumes QC notes automatically,
+       and reviewer free text must never be pasted into a compose prompt — that is
+       per-listing captioning, which does not scale. Notes are diagnostic: a person
+       reads them and decides re-run vs. a type-level guardrail change. -->
+  <textarea id="notesText" placeholder="What was wrong? Name it plainly — e.g. &quot;the front arch is wider than in the photo&quot;."></textarea>
   <div class="row">
     <button onclick="toggleNotes()">Close</button>
     <button class="save" onclick="saveNotes()">Save note</button>
@@ -225,7 +233,7 @@ async function load() {
 function renderChips() {
   $('rooms').innerHTML = rooms.map((r, i) => {
     const v = GATE === 'clip' ? r.clipVerdict : r.keyframeVerdict;
-    const cls = v === 'Approved' ? 'approved' : (v === 'Re-run' ? 'rerun' : '');
+    const cls = v === 'Approved' ? 'approved' : (v === 'Re-run' ? 'rerun' : (v === 'Trim' ? 'trimmed' : ''));
     return `<button class="chip ${cls} ${i === idx ? 'cur' : ''}" onclick="show(${i})"><span class="dot"></span>${r.room}</button>`;
   }).join('');
 }
@@ -388,7 +396,7 @@ async function setVerdict(v) {
     if (GATE === 'clip') r.clipVerdict = v; else r.keyframeVerdict = v;
     renderChips(); paintVerdict();
     toast(`${r.room} → ${v}`);
-    if (v === 'Re-run' && !r.notes) { openNotes(); toast('Add a note — it becomes the re-run prompt', 2600); }
+    if (v === 'Re-run' && !r.notes) { openNotes(); toast('Add a note — a person reads every one', 2600); }
     else if (idx < rooms.length - 1) setTimeout(() => go(1), 220);
     else toast('That was the last room. Every verdict is recorded.', 3000);
   } catch (e) { toast('Could not save: ' + e.message, 3200); }
