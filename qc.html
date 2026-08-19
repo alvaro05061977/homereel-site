@@ -37,9 +37,15 @@
   .pane{position:relative;flex:1;overflow:hidden;background:#0d0f12}
   .pane img{position:absolute;left:50%;top:50%;max-width:none;transform-origin:center center;
             user-select:none;-webkit-user-drag:none}
-  /* Gate 2 plays a CLIP, not a still. The zoom/pan transform above is image-only,
-     so the player simply fills its pane and is left out of the fit maths. */
-  .pane video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0d0f12}
+  /* ---- Gate 2 layout: client photo on top for reference, keyframe vs clip below.
+     Deliberately NOT reusing .pane — that carries the zoom/pan transform, which is
+     image-only and meaningless against a video. These panes just fit their box. ---- */
+  .clipstage{display:none;flex-direction:column;gap:8px;height:100%;padding:8px}
+  .cliptop{flex:0 0 24%;position:relative;background:#0d0f12;overflow:hidden;border:1px solid var(--line);border-radius:8px}
+  .clipbottom{flex:1;display:flex;gap:8px;min-height:0}
+  .cpane{flex:1;position:relative;background:#0d0f12;overflow:hidden;border:1px solid var(--line);border-radius:8px}
+  .cliptop img,.cpane img,.cpane video{width:100%;height:100%;object-fit:contain;display:block}
+  .cliptop .tag,.cpane .tag{left:10px;top:9px;font-size:10px;padding:5px 9px}
   .tag{position:absolute;left:14px;top:12px;z-index:5;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
        font-weight:700;background:#2f7fd0d8;backdrop-filter:blur(6px);padding:6px 11px;border-radius:999px;color:#fff;
        box-shadow:0 2px 10px #0006}
@@ -141,7 +147,23 @@
   <div class="stage" id="stage">
     <div class="panes" id="panes">
       <div class="pane" id="paneA"><span class="tag">Client photo</span><img id="imgA" alt="Client's listing photo"></div>
-      <div class="pane" id="paneB"><span class="tag ai" id="tagB">AI keyframe</span><img id="imgB" alt="Composed keyframe"><video id="vidB" controls playsinline preload="metadata" style="display:none"></video></div>
+      <div class="pane" id="paneB"><span class="tag ai" id="tagB">AI keyframe</span><img id="imgB" alt="Composed keyframe"></div>
+    </div>
+
+    <!-- GATE 2 LAYOUT. Gate 1 asks "is this the client's house?" so its control is
+         the client photo. Gate 2 asks "did the motion break anything?" and the only
+         valid control for that is the frame the motion started from — the approved
+         keyframe. Comparing a clip to the client photo re-litigates a decision
+         already made and buries the real signal under differences that are supposed
+         to be there (relight, the family). So: keyframe vs clip is the comparison,
+         and the client photo sits above it for reference when you need to ask
+         whether something in shot is actually part of the house. -->
+    <div class="clipstage" id="clipStage">
+      <div class="cliptop"><span class="tag">Client photo · reference</span><img id="cSrc" alt="Client's listing photo"></div>
+      <div class="clipbottom">
+        <div class="cpane"><span class="tag ai">Approved keyframe · the clip starts here</span><img id="cKey" alt="Approved keyframe"></div>
+        <div class="cpane"><span class="tag ai">AI clip</span><video id="vidB" controls playsinline preload="metadata"></video></div>
+      </div>
     </div>
 
     <div class="wipewrap" id="wipewrap">
@@ -183,7 +205,7 @@
   </div>
 </div>
 
-<div class="help">
+<div class="help" id="help">
   <b>←/→</b> room &nbsp; <b>A</b> approve &nbsp; <b>R</b> re-run &nbsp; <b>N</b> notes<br>
   <b>S</b> side-by-side &nbsp; <b>W</b> wipe &nbsp; <b>D</b> flip mode &nbsp; <b>F</b> hold to swap &nbsp; <b>space</b> latch &nbsp; <b>0</b> reset
 </div>
@@ -251,6 +273,8 @@ function show(i) {
     // Gate 2's right-hand pane is a VIDEO. Before 2026-08-17 this assigned the mp4
     // to an <img>, so the pane rendered nothing and no clip could ever be reviewed —
     // undetected because Gate 2 had never once been run.
+    $('cSrc').src = a;
+    $('cKey').src = r.keyframeUrl || '';
     const v = $('vidB');
     if (v.src !== b) { v.pause(); v.src = b; }
   } else {
@@ -340,6 +364,9 @@ let wipePct = 50;        // remembered across mode switches
 let showingAI = false;   // flip mode: which layer is on top
 
 function setMode(m) {
+  // Gate 2 has one layout; the mode buttons and their keyboard shortcuts are hidden
+  // there, so ignore any that still fire.
+  if (GATE === 'clip') return;
   mode = m;
   document.body.classList.toggle('mode-flip', m === 'flip');
   $('panes').style.display = m === 'side' ? 'flex' : 'none';
@@ -467,10 +494,19 @@ window.addEventListener('keyup', (e) => {
 // rather than left to look broken. Side-by-side (the clip beside the still it was
 // built from) is what the Gate 2 email tells the reviewer to expect.
 if (GATE === 'clip') {
-  $('imgB').style.display = 'none';
-  $('vidB').style.display = '';
-  $('tagB').textContent = 'AI clip';
-  ['mWipe', 'mFlip'].forEach(id => $(id).style.display = 'none');
+  // Swap in the Gate 2 layout and remove every control that does nothing here.
+  // A dead button is the same failure as untrue copy: the interface claiming a
+  // capability it does not have. Side/Wipe/Flip and zoom all act on the Gate 1
+  // image panes, which are not on screen at this gate.
+  $('panes').style.display = 'none';
+  $('wipewrap').style.display = 'none';
+  $('clipStage').style.display = 'flex';
+  ['mSide', 'mWipe', 'mFlip'].forEach(id => $(id).style.display = 'none');
+  const zc = document.querySelector('.zoomctl'); if (zc) zc.style.display = 'none';
+  const fn = $('flipnote'); if (fn) fn.style.display = 'none';
+  $('help').innerHTML =
+    '<b>←/→</b> room &nbsp; <b>A</b> approve &nbsp; <b>R</b> re-run &nbsp; <b>N</b> notes<br>' +
+    'Play the clip and compare it with the keyframe beside it — that still is exactly where the clip begins, so anything different was added by the motion.';
 }
 
 load();
