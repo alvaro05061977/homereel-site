@@ -37,6 +37,9 @@
   .pane{position:relative;flex:1;overflow:hidden;background:#0d0f12}
   .pane img{position:absolute;left:50%;top:50%;max-width:none;transform-origin:center center;
             user-select:none;-webkit-user-drag:none}
+  /* Gate 2 plays a CLIP, not a still. The zoom/pan transform above is image-only,
+     so the player simply fills its pane and is left out of the fit maths. */
+  .pane video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0d0f12}
   .tag{position:absolute;left:14px;top:12px;z-index:5;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
        font-weight:700;background:#2f7fd0d8;backdrop-filter:blur(6px);padding:6px 11px;border-radius:999px;color:#fff;
        box-shadow:0 2px 10px #0006}
@@ -138,7 +141,7 @@
   <div class="stage" id="stage">
     <div class="panes" id="panes">
       <div class="pane" id="paneA"><span class="tag">Client photo</span><img id="imgA" alt="Client's listing photo"></div>
-      <div class="pane" id="paneB"><span class="tag ai">AI keyframe</span><img id="imgB" alt="Composed keyframe"></div>
+      <div class="pane" id="paneB"><span class="tag ai" id="tagB">AI keyframe</span><img id="imgB" alt="Composed keyframe"><video id="vidB" controls playsinline preload="metadata" style="display:none"></video></div>
     </div>
 
     <div class="wipewrap" id="wipewrap">
@@ -244,7 +247,15 @@ function show(i) {
   const r = rooms[i];
   const a = r.sourceUrl, b = GATE === 'clip' ? r.clipUrl : r.keyframeUrl;
   ['imgA', 'wImgA'].forEach(id => $(id).src = a);
-  ['imgB', 'wImgB'].forEach(id => $(id).src = b);
+  if (GATE === 'clip') {
+    // Gate 2's right-hand pane is a VIDEO. Before 2026-08-17 this assigned the mp4
+    // to an <img>, so the pane rendered nothing and no clip could ever be reviewed —
+    // undetected because Gate 2 had never once been run.
+    const v = $('vidB');
+    if (v.src !== b) { v.pause(); v.src = b; }
+  } else {
+    ['imgB', 'wImgB'].forEach(id => $(id).src = b);
+  }
   $('notesRoom').textContent = r.room;
   $('notesText').value = r.notes || '';
   resetView();
@@ -433,7 +444,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === '=' || k === '+') zoomBy(1);
   else if (k === '-') zoomBy(-1);
   else if (k === ' ' && mode === 'flip') { e.preventDefault(); toggleFlip(); }
-  else if (k === 'f' && !flipping) {
+  else if (k === 'f' && !flipping && GATE !== 'clip') {
     // Blink comparison: swap the AI frame in place, held.
     flipping = true;
     if (mode === 'side') $('imgA').src = rooms[idx].keyframeUrl || rooms[idx].clipUrl;
@@ -449,6 +460,18 @@ window.addEventListener('keyup', (e) => {
     else setWipe(wipePct);
   }
 });
+
+// Gate 2 setup. This script tag sits below the markup, so the elements already
+// exist — no DOMContentLoaded needed. Wipe and Flip are blink-comparison tools for
+// two STILLS; against a playing clip they show nothing useful, so they are removed
+// rather than left to look broken. Side-by-side (the clip beside the still it was
+// built from) is what the Gate 2 email tells the reviewer to expect.
+if (GATE === 'clip') {
+  $('imgB').style.display = 'none';
+  $('vidB').style.display = '';
+  $('tagB').textContent = 'AI clip';
+  ['mWipe', 'mFlip'].forEach(id => $(id).style.display = 'none');
+}
 
 load();
 </script>
