@@ -4,9 +4,15 @@
 // We verify the request really came from Stripe (HMAC signature over the raw body),
 // then flip the Airtable order's Payment Status. Zero npm dependencies.
 //
+// Once an order is Paid it also kicks /api/plates, which puts the client's
+// photos, headshot and logo into Magnific (build spec P1.2). That call is made
+// over HTTP so it runs in its OWN invocation: this handler answers Stripe
+// straight away and never waits on eight uploads.
+//
 // Env vars required (set in Vercel):
 //   STRIPE_WEBHOOK_SECRET - the whsec_... signing secret from the Stripe webhook endpoint
 //   AIRTABLE_TOKEN        - same token /api/order uses
+//   QC_KEY                - shared secret; without it /api/plates refuses the call
 //
 // Stripe endpoint setup (Dashboard → Developers → Webhooks → Add endpoint):
 //   URL:    https://homereel-site.vercel.app/api/stripe-webhook
@@ -64,6 +70,39 @@ async function setPaymentStatus(token, recordId, status, sessionId) {
   if (!r.ok) throw new Error(`Airtable PATCH ${r.status}: ${(await r.text()).slice(0, 300)}`);
 }
 
+// Ask /api/plates to ingest this order's images.
+//
+// Deliberately NOT awaited to completion. We give it a couple of seconds to get
+// going and then stop caring: the request has been sent, that function is now
+// running on its own clock, and this handler must not hold Stripe open while it
+// works. If the call never lands at all, nothing is lost — ingestPlates is
+// idempotent and api/produce runs it again before production starts.
+async function triggerPlates(recordId) {
+  const key = process.env.QC_KEY;
+  const host = process.env.VERCEL_URL;
+  if (!key || !host) {
+    console.error("webhook: cannot trigger plates (QC_KEY or VERCEL_URL missing)");
+    return;
+  }
+  const controller = new AbortController();
+  const stopWaiting = setTimeout(() => controller.abort(), 2500);
+  try {
+    const r = await fetch(`https://${host}/api/plates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order: recordId, k: key }),
+      signal: controller.signal,
+    });
+    console.log("webhook: plates trigger ->", r.status);
+  } catch (e) {
+    // An abort here is the expected case, not a failure: it means the uploads
+    // are taking longer than we are willing to wait, which is fine.
+    console.log("webhook: plates trigger released early:", String(e.name || e));
+  } finally {
+    clearTimeout(stopWaiting);
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -93,10 +132,14 @@ export default async function handler(req, res) {
         // now but pay later — those flip on async_payment_succeeded instead.
         if (recordId && session.payment_status === "paid") {
           await setPaymentStatus(token, recordId, "Paid", session.id);
+          await triggerPlates(recordId);
         }
         break;
       case "checkout.session.async_payment_succeeded":
-        if (recordId) await setPaymentStatus(token, recordId, "Paid", session.id);
+        if (recordId) {
+          await setPaymentStatus(token, recordId, "Paid", session.id);
+          await triggerPlates(recordId);
+        }
         break;
       case "checkout.session.async_payment_failed":
         if (recordId) await setPaymentStatus(token, recordId, "Failed", session.id);
