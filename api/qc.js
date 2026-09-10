@@ -18,6 +18,7 @@
 //            internal testing; the listing photos are client property.
 
 import { afterVerdict } from "../lib/gates.js";
+import { selfUrl } from "../lib/self-url.js";
 
 const AIRTABLE_BASE = "apprH6McRLyr1EpY5";
 const ORDERS = "Orders";
@@ -219,7 +220,7 @@ export default async function handler(req, res) {
       let gates = null;
       if (b.verdict !== undefined) {
         try {
-          gates = await afterVerdict(recordId, gate, token);
+          gates = await afterVerdict(recordId, gate, token, selfUrl(req));
         } catch (e) {
           console.error("qc: gate check failed (verdict was still saved):", String(e));
           gates = { error: String(e.message || e) };

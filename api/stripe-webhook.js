@@ -21,6 +21,7 @@
 //           checkout.session.async_payment_failed
 
 import crypto from "crypto";
+import { selfUrl } from "../lib/self-url.js";
 
 const AIRTABLE_BASE = "apprH6McRLyr1EpY5";
 const AIRTABLE_TABLE = "Orders";
@@ -77,17 +78,16 @@ async function setPaymentStatus(token, recordId, status, sessionId) {
 // running on its own clock, and this handler must not hold Stripe open while it
 // works. If the call never lands at all, nothing is lost — ingestPlates is
 // idempotent and api/produce runs it again before production starts.
-async function triggerPlates(recordId) {
+async function triggerPlates(recordId, base) {
   const key = process.env.QC_KEY;
-  const host = process.env.VERCEL_URL;
-  if (!key || !host) {
-    console.error("webhook: cannot trigger plates (QC_KEY or VERCEL_URL missing)");
+  if (!key || !base) {
+    console.error("webhook: cannot trigger plates (QC_KEY missing, or no host on the request)");
     return;
   }
   const controller = new AbortController();
   const stopWaiting = setTimeout(() => controller.abort(), 2500);
   try {
-    const r = await fetch(`https://${host}/api/plates`, {
+    const r = await fetch(`${base}/api/plates`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ order: recordId, k: key }),
@@ -132,13 +132,13 @@ export default async function handler(req, res) {
         // now but pay later — those flip on async_payment_succeeded instead.
         if (recordId && session.payment_status === "paid") {
           await setPaymentStatus(token, recordId, "Paid", session.id);
-          await triggerPlates(recordId);
+          await triggerPlates(recordId, selfUrl(req));
         }
         break;
       case "checkout.session.async_payment_succeeded":
         if (recordId) {
           await setPaymentStatus(token, recordId, "Paid", session.id);
-          await triggerPlates(recordId);
+          await triggerPlates(recordId, selfUrl(req));
         }
         break;
       case "checkout.session.async_payment_failed":
