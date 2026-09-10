@@ -17,7 +17,6 @@
 //   QC_KEY - if set, every request must carry ?k=<QC_KEY>. Leave unset only for
 //            internal testing; the listing photos are client property.
 
-import { syncApprovedKeyframe } from "../lib/canvas-core.js";
 import { afterVerdict } from "../lib/gates.js";
 
 const AIRTABLE_BASE = "apprH6McRLyr1EpY5";
@@ -201,28 +200,20 @@ export default async function handler(req, res) {
 
       // The verdict is saved; that part is now safe regardless of what follows.
       //
-      // An APPROVED keyframe goes straight onto the client's Magnific canvas,
-      // wired as that room's animation first frame. This is the instant path:
-      // the approval already came through us, so nothing has to poll or notify.
-      // Failure here NEVER fails the request - losing a reviewer's verdict
-      // because a canvas was unreachable would be much worse than a canvas
-      // that is briefly out of date, and /api/canvas-sync can replay it.
-      let canvas = null;
-      if (gate === "keyframe" && b.verdict === "Approved") {
-        try {
-          canvas = await syncApprovedKeyframe(recordId, token);
-        } catch (e) {
-          console.error("qc: canvas sync failed (verdict was still saved):", String(e));
-          canvas = { synced: false, error: String(e.message || e) };
-        }
-      }
+      // RETIRED 2026-09-10 (build spec P1.7): an approved keyframe used to be
+      // pushed onto the client's Space as a separate "APPROVED KEYFRAME" node.
+      // Alvaro's rule of 09-08 forbids that shape — the Space IS the pipeline,
+      // every generator node holds its own output, and ANIMATE reads its own
+      // COMPOSE. A side node carrying an approved render is exactly what made
+      // HR-0005's board unreadable. Nothing replaces this call: with the new
+      // shape there is nothing to sync.
 
       // Did that verdict just close a gate? If every keyframe is now approved,
       // the clips start; if every clip has a verdict, assembly is next. The
       // reviewer presses nothing else — this is the hand-off that was a person
       // on HR-0005.
       //
-      // Same failure rule as the canvas sync above: this must never fail the
+      // Failure rule: this must never fail the
       // request. A saved verdict is the thing that matters, and a missed
       // hand-off can always be restarted by calling api/produce directly.
       let gates = null;
@@ -235,7 +226,7 @@ export default async function handler(req, res) {
         }
       }
 
-      res.status(200).json({ ok: true, ...(canvas ? { canvas } : {}), ...(gates ? { gates } : {}) });
+      res.status(200).json({ ok: true, ...(gates ? { gates } : {}) });
       return;
     }
 
