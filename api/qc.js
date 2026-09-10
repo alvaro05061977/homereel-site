@@ -18,6 +18,7 @@
 //            internal testing; the listing photos are client property.
 
 import { syncApprovedKeyframe } from "../lib/canvas-core.js";
+import { afterVerdict } from "../lib/gates.js";
 
 const AIRTABLE_BASE = "apprH6McRLyr1EpY5";
 const ORDERS = "Orders";
@@ -216,7 +217,25 @@ export default async function handler(req, res) {
         }
       }
 
-      res.status(200).json({ ok: true, ...(canvas ? { canvas } : {}) });
+      // Did that verdict just close a gate? If every keyframe is now approved,
+      // the clips start; if every clip has a verdict, assembly is next. The
+      // reviewer presses nothing else — this is the hand-off that was a person
+      // on HR-0005.
+      //
+      // Same failure rule as the canvas sync above: this must never fail the
+      // request. A saved verdict is the thing that matters, and a missed
+      // hand-off can always be restarted by calling api/produce directly.
+      let gates = null;
+      if (b.verdict !== undefined) {
+        try {
+          gates = await afterVerdict(recordId, gate, token);
+        } catch (e) {
+          console.error("qc: gate check failed (verdict was still saved):", String(e));
+          gates = { error: String(e.message || e) };
+        }
+      }
+
+      res.status(200).json({ ok: true, ...(canvas ? { canvas } : {}), ...(gates ? { gates } : {}) });
       return;
     }
 
