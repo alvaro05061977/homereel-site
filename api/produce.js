@@ -12,8 +12,10 @@
 //
 // HTTP meanings:
 //   200 ran            — a stage was started
-//   200 ok, ran:false  — everything passed but there is nothing to run yet
-//                        (Phase 0: no Flow published). Nothing changed.
+//   200 ok, ran:false  — every guard passed but the board could not be run:
+//                        no Magnific Space ID on the order, a room with no
+//                        matching node, or a node that prices wrong. The body
+//                        says which. Nothing was spent and nothing changed.
 //   409 refused        — a guard said no. The body says which one and why.
 //
 // Env vars:
@@ -22,8 +24,11 @@
 //   ORDER_BUDGET_CREDITS   optional, default 45,000. THE circuit-breaker:
 //                          Magnific auto top-up is on, so nothing else stops a
 //                          runaway from simply buying more credits.
-//   MAGNIFIC_FLOW_ID       not set yet — Phase 0 P0.1
-//   MAGNIFIC_FLOW_INPUT_MAP  not set yet — Phase 0 P0.2
+//
+// No Flow env vars. Renders are driven node by node on the order's own Space
+// (lib/space.js) because a Flow runs a whole board in one go and this pipeline
+// must stop at both QC gates. The only thing the order needs is its
+// `Magnific Space ID`.
 
 import { startOrder } from "../lib/produce.js";
 import { MagnificError } from "../lib/magnific.js";
