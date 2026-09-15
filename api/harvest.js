@@ -67,10 +67,13 @@ export default async function handler(req, res) {
   const b = req.body || {};
   const orderId = String(q.order || b.order || "");
   const stage = String(q.stage || b.stage || "") || undefined;
+  // ?debug=1 adds the raw reply Magnific sent for any room still reported as
+  // running. Diagnostic only; it changes nothing and spends nothing.
+  const debug = q.debug === "1" || b.debug === true;
 
   try {
     const result = orderId
-      ? await harvestOrder(orderId, token, { stage, base: selfUrl(req) })
+      ? await harvestOrder(orderId, token, { stage, base: selfUrl(req), debug })
       : await harvestAll(token, { base: selfUrl(req) });
     res.status(200).json(result);
   } catch (e) {
